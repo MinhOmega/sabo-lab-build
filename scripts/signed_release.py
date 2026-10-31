@@ -46,6 +46,7 @@ def run_build(root,platform):
         (desktop,[npm,'run','build']),(desktop,['node','--test']),
         (source,[sys.executable,'-B','-m','unittest','discover','-s','scripts/tests','-p','test_app_release.py']),
         (source,['cargo','test','--locked','--manifest-path','apps/desktop/src-tauri/Cargo.toml','--lib']),
+        (source,['cargo','test','--locked','--manifest-path','apps/desktop/src-tauri/Cargo.toml','--lib','--features','commercial-license','license::tests']),
         (source,[sys.executable,'scripts/prepare-app-release.py','--output',str(overlay)]),
         (desktop,[npm,'run','tauri','build','--','--target',target,'--bundles',bundle,'--features','commercial-license','--config',str(overlay)])]
  failed=None
