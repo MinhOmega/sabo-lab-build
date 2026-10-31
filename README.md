@@ -4,6 +4,10 @@ Repo public này chỉ chứa workflow và helper điều phối. Source và rel
 
 Pipeline chạy trên runner chuẩn `windows-2022`: tải đúng commit private → kiểm tra assets → frontend build/tests → tests 7 crate và desktop → build NSIS release → upload EXE, SHA256, provenance và log vào release **private**. Log công khai chỉ có trạng thái stage; output của compiler/tests được chuyển vào `build-detail.txt` private. Đây là installer thử nghiệm; build thành công chưa xác nhận Nox/LDPlayer/gameplay, chưa ký Authenticode và chưa tạo artifact updater có chữ ký.
 
+## Bản build đã kiểm chứng
+
+[Run 41206806274](https://github.com/MinhOmega/sabo-lab-build/actions/runs/41206806274) đã thành công trên Windows2022 từ private commit `bc1ed4a1b025bcb3279b8ac1d8d7777d9055c5af`: 257 frontend tests, 186 desktop native tests, 160 tests của 7 crate và NSIS release build. Installer0.3.10 khoảng41MB ở [prerelease private](https://github.com/MinhOmega/sabo-lab-next/releases/tag/windows-ci-bc1ed4a1b025). SHA-256 được đối chiếu sau khi tải. Chưa kiểm chứng install/gameplay Windows hoặc ký Authenticode/updater.
+
 ## Cấu hình một lần
 
 1. Tạo **fine-grained personal access token** với resource owner `MinhOmega`, chỉ chọn repository **`sabo-lab-next`**, quyền **Contents: Read and write**. Metadata: Read là quyền đi kèm. Token cần đọc source và tạo/upload release, không cần quyền admin account, workflow write hay toàn bộ repo. Đặt thời hạn và rotate khi hết hạn. Không dán token vào issue/chat/source.
