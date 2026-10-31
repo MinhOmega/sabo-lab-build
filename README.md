@@ -1,12 +1,25 @@
-# Sabo Lab Windows build orchestrator
+# Sabo Lab desktop build orchestrator
 
-Repo public này chỉ chứa workflow và helper điều phối. Source và release đích vẫn ở **private** `MinhOmega/sabo-lab-next`. Không đổi visibility của source, không upload source, installer hoặc detailed build log vào Actions artifact/cache của repo public.
+Repo public này chỉ chứa workflow và helper điều phối. Source luôn ở **private** `MinhOmega/sabo-lab-next`. Có hai luồng: Windows test build lưu installer/log private; signed desktop release chủ động phát hành **chỉ binary có chữ ký và feed cập nhật** tại [releases công khai](https://github.com/MinhOmega/sabo-lab-build/releases). Không upload source hoặc detailed build log vào Actions artifact/cache/release công khai.
 
 Pipeline chạy trên runner chuẩn `windows-2022`: tải đúng commit private → kiểm tra assets → frontend build/tests → tests 7 crate và desktop → build NSIS release → upload EXE, SHA256, provenance và log vào release **private**. Log công khai chỉ có trạng thái stage; output của compiler/tests được chuyển vào `build-detail.txt` private. Đây là installer thử nghiệm; build thành công chưa xác nhận Nox/LDPlayer/gameplay, chưa ký Authenticode và chưa tạo artifact updater có chữ ký.
 
 ## Bản build đã kiểm chứng
 
 [Run 41206806274](https://github.com/MinhOmega/sabo-lab-build/actions/runs/41206806274) đã thành công trên Windows2022 từ private commit `bc1ed4a1b025bcb3279b8ac1d8d7777d9055c5af`: 257 frontend tests, 186 desktop native tests, 160 tests của 7 crate và NSIS release build. Installer0.3.10 khoảng41MB ở [prerelease private](https://github.com/MinhOmega/sabo-lab-next/releases/tag/windows-ci-bc1ed4a1b025). SHA-256 được đối chiếu sau khi tải. Chưa kiểm chứng install/gameplay Windows hoặc ký Authenticode/updater.
+
+## Phát hành Mac/Windows có chữ ký
+
+Vào **Actions → Signed desktop release from private source → Run workflow** trên `main`:
+
+- `source_sha`: SHA đầy đủ 40 ký tự của private source đã review.
+- `tag`: `app-v<version>` khớp version trong source, ví dụ `app-v0.3.11`.
+
+Environment `private-build` chỉ cho `main`. Secrets: `SABO_PRIVATE_REPO_TOKEN` như bên dưới, và `TAURI_SIGNING_PRIVATE_KEY` của nhà phát hành. Không tạo lại khóa ký theo từng lượt build; app pin public key tương ứng. Gói Mac ARM64 và Windows x64 được build với feature `commercial-license`, có màn nhập email/key. Bước build chỉ nhận khóa ký ở công đoạn đóng gói cuối, không nhận GitHub PAT.
+
+Hai nền tảng cùng thành công mới publish release cùng `latest.json`. Nguồn và log compiler giữ private; binary/signature được công khai có chủ đích. Publish dùng `GITHUB_TOKEN` chỉ có Contents:write của repo này, không cần PAT rộng hơn để ghi sang repo khác. Người dùng kiểm tra/tải cập nhật ẩn danh; không nhập GitHub token trong app. Chữ ký updater không thay Windows Authenticode hoặc Apple notarization.
+
+Logs từng nền tảng ở draft **private** `signed-<platform>-ci-<SHA>`. Nếu draft public đã có asset từ lượt thất bại, kiểm tra và xóa asset của đúng lượt lỗi trước khi build lại; helper từ chối ghi đè âm thầm. Release đã publish phải tăng version cho lượt mới.
 
 ## Cấu hình một lần
 
@@ -15,7 +28,7 @@ Pipeline chạy trên runner chuẩn `windows-2022`: tải đúng commit private
 3. Vào **Settings → Environments → private-build**. Chỉ cho branch `main` deploy; đặt required reviewers để review trước khi dùng token. Người có quyền write workflow có thể truy cập secrets qua code của họ; giới hạn collaborators và bảo vệ `main`. Không approve thay đổi workflow/source SHA chưa review.
 4. Tuỳ chọn: bật variable **`SABO_AUTO_BUILD=true`** để kiểm tra `main` private mỗi giờ. Mặc định chưa bật. Lượt đã có `BUILD-SUCCEEDED.json` trong private release sẽ được bỏ qua. Lượt tự động chỉ tạo draft, không tự publish. Thời gian schedule không phải SLA và có thể trễ.
 
-Fine-grained token được giới hạn repo đích; đừng dùng GitHub password, SSH private key hoặc PAT classic cấp toàn bộ account. Không cần cấp token cho máy member tải installer: member được cấp quyền đọc private repo và tải release bằng tài khoản GitHub của họ.
+Với Windows test build private, member cần quyền đọc private repo; với signed release public thì tải binary không cần quyền vào source. Fine-grained token được giới hạn repo đích; đừng dùng GitHub password, SSH private key hoặc PAT classic cấp toàn bộ account. Không cần cấp token cho máy member tải installer: member được cấp quyền đọc private repo và tải release bằng tài khoản GitHub của họ.
 
 ## Bấm build
 
