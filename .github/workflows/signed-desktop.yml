@@ -52,13 +52,14 @@ jobs:
       run:
         shell: bash
     env:
-      PRIVATE_BUILD_ROOT: ${{ runner.temp }}/sabo-signed-${{ matrix.platform }}
       RELEASE_TAG: ${{ inputs.tag }}
       BUILD_PLATFORM: ${{ matrix.platform }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           persist-credentials: false
+      - name: Prepare ephemeral build directory
+        run: python -c 'import os; p=os.path.join(os.environ["RUNNER_TEMP"],"sabo-signed-"+os.environ["BUILD_PLATFORM"]); open(os.environ["GITHUB_ENV"],"a",encoding="utf-8").write("PRIVATE_BUILD_ROOT="+p+"\n")'
       - name: Fetch pinned private source
         env:
           SABO_PRIVATE_REPO_TOKEN: ${{ secrets.SABO_PRIVATE_REPO_TOKEN }}
