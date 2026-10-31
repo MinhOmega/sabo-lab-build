@@ -10,6 +10,13 @@ class BuilderTests(unittest.TestCase):
   with patch.object(b,'api',return_value={'sha':SHA}):self.assertEqual(b.select_commit(SHA),SHA)
   with patch.object(b,'api',return_value={'sha':'b'*40}):
    with self.assertRaises(b.SafeError):b.select_commit(SHA)
+ def test_api_delete_accepts_empty_204_without_json_body(self):
+  class Response:
+   status=204
+   def __enter__(self):return self
+   def __exit__(self,*args):return False
+  with patch.object(b,'token',return_value='fake-test-only'),patch.object(b.urllib.request,'urlopen',return_value=Response()):
+   self.assertEqual(b.api('/repos/'+b.REPOSITORY+'/releases/assets/9',method='DELETE'),{})
  def test_destination_is_always_the_single_private_repo(self):
   with self.assertRaises(b.SafeError):b.api('/repos/attacker/other/releases')
   with patch.object(b,'api',return_value={'private':False}):
