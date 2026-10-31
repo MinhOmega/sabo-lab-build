@@ -1,0 +1,104 @@
+name: Signed desktop release from private source
+on:
+  workflow_dispatch:
+    inputs:
+      source_sha:
+        description: Full reviewed private source SHA
+        type: string
+        required: true
+      tag:
+        description: App release tag matching source version
+        type: string
+        default: app-v0.3.11
+        required: true
+permissions:
+  contents: read
+concurrency:
+  group: signed-desktop-release
+  cancel-in-progress: false
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    environment: private-build
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Validate release request and create binary draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: python scripts/signed_release.py prepare --tag "$RELEASE_TAG"
+  build:
+    needs: prepare
+    environment: private-build
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-latest
+            platform: macos
+            target: aarch64-apple-darwin
+          - runner: windows-2022
+            platform: windows
+            target: x86_64-pc-windows-msvc
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 90
+    defaults:
+      run:
+        shell: bash
+    env:
+      PRIVATE_BUILD_ROOT: ${{ runner.temp }}/sabo-signed-${{ matrix.platform }}
+      RELEASE_TAG: ${{ inputs.tag }}
+      BUILD_PLATFORM: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Fetch pinned private source
+        env:
+          SABO_PRIVATE_REPO_TOKEN: ${{ secrets.SABO_PRIVATE_REPO_TOKEN }}
+          SOURCE_SHA: ${{ inputs.source_sha }}
+        run: python scripts/builder.py fetch --root "$PRIVATE_BUILD_ROOT" --sha "$SOURCE_SHA"
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 24
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec
+        with:
+          targets: ${{ matrix.target }}
+      - name: Build signed bundle (detailed output stays private)
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ''
+        run: python scripts/signed_release.py build --root "$PRIVATE_BUILD_ROOT" --platform "$BUILD_PLATFORM" --tag "$RELEASE_TAG"
+      - name: Save private diagnostic log
+        if: always()
+        env:
+          SABO_PRIVATE_REPO_TOKEN: ${{ secrets.SABO_PRIVATE_REPO_TOKEN }}
+        run: python scripts/signed_release.py diagnostics --root "$PRIVATE_BUILD_ROOT" --tag "$RELEASE_TAG"
+      - name: Upload only signed binary and signature to public draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python scripts/signed_release.py upload --root "$PRIVATE_BUILD_ROOT" --tag "$RELEASE_TAG"
+      - name: Clean private source and output
+        if: always()
+        run: python -c 'import os,shutil; shutil.rmtree(os.environ["PRIVATE_BUILD_ROOT"],ignore_errors=True)'
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: private-build
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Publish both signed platforms and updater manifest
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: python scripts/signed_release.py finalize --tag "$RELEASE_TAG"
