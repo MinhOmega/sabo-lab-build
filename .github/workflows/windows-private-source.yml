@@ -1,0 +1,79 @@
+name: Build Windows from private source
+run-name: Windows build requested by ${{ github.actor }}
+on:
+  workflow_dispatch:
+    inputs:
+      source_sha:
+        description: Full private source commit SHA (blank uses main)
+        type: string
+        default: ''
+      publish_release:
+        description: Publish successful prerelease in PRIVATE source repo (otherwise draft)
+        type: boolean
+        default: false
+  schedule:
+    - cron: '17 * * * *'
+permissions:
+  contents: read
+concurrency:
+  group: private-windows-build
+  cancel-in-progress: false
+jobs:
+  windows:
+    if: github.repository == 'MinhOmega/sabo-lab-build' && (github.event_name == 'workflow_dispatch' || vars.SABO_AUTO_BUILD == 'true')
+    runs-on: windows-2022
+    timeout-minutes: 90
+    environment: private-build
+    env:
+      PRIVATE_BUILD_ROOT: ${{ runner.temp }}/sabo-private-build-${{ github.run_id }}-${{ github.run_attempt }}
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Validate public orchestration
+        run: python -B -m unittest discover -s tests
+      - name: Fetch pinned private source without persisting Git credentials
+        id: source
+        env:
+          SABO_PRIVATE_REPO_TOKEN: ${{ secrets.SABO_PRIVATE_REPO_TOKEN }}
+          SOURCE_SHA: ${{ inputs.source_sha }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          $arguments = @('scripts/builder.py','fetch','--root',$env:PRIVATE_BUILD_ROOT,'--sha',$env:SOURCE_SHA)
+          if ($env:EVENT_NAME -eq 'schedule') { $arguments += '--scheduled' }
+          python @arguments
+          if ($LASTEXITCODE -ne 0) { throw 'Private source preparation failed; see safe diagnostic above.' }
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        if: steps.source.outputs.skip != 'true'
+        with:
+          node-version: 24
+          # Deliberately no dependency cache for private source in public repo.
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+        if: steps.source.outputs.skip != 'true'
+        with:
+          targets: x86_64-pc-windows-msvc
+      - name: Test and build Windows NSIS (detailed output stays private)
+        id: build
+        if: steps.source.outputs.skip != 'true'
+        run: |
+          python scripts/builder.py build --root $env:PRIVATE_BUILD_ROOT
+          if ($LASTEXITCODE -ne 0) { throw 'Build failed. Detailed output is uploaded to the private draft release next.' }
+      - name: Upload only to PRIVATE repository release
+        if: always() && steps.source.outcome == 'success' && steps.source.outputs.skip != 'true'
+        env:
+          SABO_PRIVATE_REPO_TOKEN: ${{ secrets.SABO_PRIVATE_REPO_TOKEN }}
+          PUBLISH_RELEASE: ${{ inputs.publish_release }}
+        run: |
+          $arguments = @('scripts/builder.py','publish','--root',$env:PRIVATE_BUILD_ROOT)
+          if ($env:PUBLISH_RELEASE -eq 'true') { $arguments += '--publish' }
+          python @arguments
+          if ($LASTEXITCODE -ne 0) { throw 'Private upload failed; no output was exposed in this public repo.' }
+      - name: Remove ephemeral private source and output
+        if: always()
+        run: |
+          if (Test-Path -LiteralPath $env:PRIVATE_BUILD_ROOT) {
+            Remove-Item -LiteralPath $env:PRIVATE_BUILD_ROOT -Recurse -Force
+          }
