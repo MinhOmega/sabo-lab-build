@@ -38,7 +38,7 @@ def run_build(root,platform):
  if not re.fullmatch(r'\d+\.\d+\.\d+',version):raise builder.SafeError('Expected stable explicit release semver.')
  status={**request,'version':version,'platform':platform,'status':'failed','tag':'signed-'+platform+'-ci-'+request['sourceCommit'][:12]}
  env={k:v for k,v in os.environ.items() if not any(s in k.upper() for s in ('TOKEN','SECRET','PASSWORD','SIGNING_PRIVATE'))}
- env.update(CARGO_TARGET_DIR=str(root/'target'),CARGO_INCREMENTAL='0',CARGO_BUILD_JOBS='1',SABO_BUILD_REVISION=request['sourceCommit'])
+ env.update(CARGO_TARGET_DIR=str(root/'target'),CARGO_INCREMENTAL='0',CARGO_BUILD_JOBS='1',SABO_BUILD_REVISION=request['sourceCommit'],PYTHONUTF8='1')
  env.pop('SABO_FAKE_AGENT',None);env.pop('SABO_AGENT_SCRIPT',None)
  npm='npm.cmd' if os.name=='nt' else 'npm';desktop=source/'apps/desktop';overlay=root/'updater-config.json'
  steps=[(source,[sys.executable,'scripts/prepare-assets.py']),
