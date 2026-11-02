@@ -38,13 +38,14 @@ def run_build(root,platform):
  if not re.fullmatch(r'\d+\.\d+\.\d+',version):raise builder.SafeError('Expected stable explicit release semver.')
  status={**request,'version':version,'platform':platform,'status':'failed','tag':'signed-'+platform+'-ci-'+request['sourceCommit'][:12]}
  env={k:v for k,v in os.environ.items() if not any(s in k.upper() for s in ('TOKEN','SECRET','PASSWORD','SIGNING_PRIVATE'))}
- env.update(CARGO_TARGET_DIR=str(root/'target'),CARGO_INCREMENTAL='0',CARGO_BUILD_JOBS='1')
+ env.update(CARGO_TARGET_DIR=str(root/'target'),CARGO_INCREMENTAL='0',CARGO_BUILD_JOBS='1',SABO_BUILD_REVISION=request['sourceCommit'])
  env.pop('SABO_FAKE_AGENT',None);env.pop('SABO_AGENT_SCRIPT',None)
  npm='npm.cmd' if os.name=='nt' else 'npm';desktop=source/'apps/desktop';overlay=root/'updater-config.json'
  steps=[(source,[sys.executable,'scripts/prepare-assets.py']),
         (desktop,[npm,'ci','--no-audit','--no-fund']),
         (desktop,[npm,'run','build']),(desktop,['node','--test']),
-        (source,[sys.executable,'-B','-m','unittest','discover','-s','scripts/tests','-p','test_app_release.py']),
+        (source,[sys.executable,'-B','-m','unittest','discover','-s','scripts/tests','-p','test_*.py']),
+        (source,['cargo','test','--locked','--manifest-path','crates/sabo-bootstrap/Cargo.toml']),
         (source,['cargo','test','--locked','--manifest-path','apps/desktop/src-tauri/Cargo.toml','--lib']),
         (source,['cargo','test','--locked','--manifest-path','apps/desktop/src-tauri/Cargo.toml','--lib','--features','commercial-license','license::tests']),
         (source,[sys.executable,'scripts/prepare-app-release.py','--output',str(overlay)]),
