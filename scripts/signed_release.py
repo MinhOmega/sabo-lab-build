@@ -67,7 +67,14 @@ def run_build(root,platform,verification=False):
    stage=build_runtime.run_stage(args,cwd,child,log,5400,STAGE_NAMES[index-1])
    status['stages'].append(stage)
    print('Private stage %d completed in %.1fs.'%(index,stage['durationSeconds']),flush=True)
-   if not stage['success']:failed=index;break
+   if not stage['success']:
+    failed=index
+    if platform=='windows' and STAGE_NAMES[index-1] in ('desktop-tests','license-tests'):
+     log.write(b'\nWINDOWS LOADER FAILURE PROBE (private, diagnostic only)\n');log.flush()
+     probe=pathlib.Path(__file__).with_name('windows_loader_probe.py').resolve()
+     diagnostic=build_runtime.run_stage([sys.executable,str(probe),str(root/'target')],source,env,log,45,'windows-loader-probe')
+     status['loaderProbe']=diagnostic
+    break
   if failed is None:
    files=list((root/'target'/target/'release/bundle').glob(pattern))
    if len(files)!=1:failed='artifact-count'
