@@ -44,6 +44,34 @@ class CacheTests(unittest.TestCase):
    os.utime(private,(1,1));os.utime(public,(2,2));write(root/'target/debug/.fingerprint/desktop-ab/lib-desktop',b'old workspace');write(root/'source/main.rs',b'new app');write(root/'target/release/bundle/private.exe',b'signed app')
    archive=root/'cache.tar.gz';count,total=cache.pack(root,config(),archive);self.assertEqual(count,1);self.assertEqual(total,len(b'public dependency'))
    cache.extract(archive,root/'expanded',config());self.assertEqual((root/'expanded/target/debug/deps/libserde-ab.rlib').read_bytes(),b'public dependency');self.assertFalse((root/'expanded/source').exists());self.assertFalse((root/'expanded/target/debug/deps/libdesktop_lib-ab.rlib').exists())
+ def test_hardlinked_dependency_outputs_are_stored_as_independent_regular_files(self):
+  with tempfile.TemporaryDirectory() as d:
+   root=pathlib.Path(d);first=write(root/'target/debug/deps/libserde-ab.rlib',b'compiled public dependency')
+   second=first.with_suffix('.lib');os.link(first,second)
+   private=write(root/'target/debug/deps/libdesktop_lib-ab.rlib',b'private app');os.link(private,private.with_suffix('.lib'))
+   archive=root/'cache.tar.gz';count,total=cache.pack(root,config(),archive)
+   self.assertEqual(count,2);self.assertEqual(total,len(first.read_bytes())*2)
+   with tarfile.open(archive,'r:gz') as t:
+    items=t.getmembers();self.assertEqual(len(items),2);self.assertTrue(all(x.isfile() for x in items));self.assertTrue(all(not x.linkname for x in items))
+   cache.extract(archive,root/'expanded',config())
+   self.assertEqual((root/'expanded/target/debug/deps/libserde-ab.lib').read_bytes(),first.read_bytes())
+   self.assertFalse((root/'expanded/target/debug/deps/libdesktop_lib-ab.lib').exists())
+ def test_pack_revalidates_candidate_and_refuses_symlink_or_replaced_file(self):
+  with tempfile.TemporaryDirectory() as d:
+   root=pathlib.Path(d);candidate=write(root/'target/debug/deps/libserde-ab.rlib',b'public dependency')
+   foreign=write(root/'private-source',b'not a dependency')
+   try:
+    link=candidate.with_suffix('.link');link.symlink_to(foreign)
+   except OSError:
+    link=None  # Windows hosts without symlink privilege still test the race below.
+   if link is not None:
+    with mock.patch.object(cache,'cache_files',return_value=iter([(link,'target/debug/deps/libserde-ab.link')])):
+     with self.assertRaises(cache.builder.SafeError):cache.pack(root,config(),root/'symlink.tar.gz')
+   real_open=cache.os.open
+   def swap(path,flags):
+    path.rename(path.with_suffix('.old'));path.write_bytes(b'replaced dependency');return real_open(path,flags)
+   with mock.patch.object(cache.os,'open',side_effect=swap):
+    with self.assertRaises(cache.builder.SafeError):cache.pack(root,config(),root/'race.tar.gz')
  def test_symlinks_traversal_duplicates_private_crates_and_oversize_entries_are_rejected(self):
   for name,kind in [('target/debug/deps/../outside',tarfile.REGTYPE),('target/debug/deps/link',tarfile.SYMTYPE),('target/debug/deps/link',tarfile.LNKTYPE),('target/debug/deps/libdesktop_lib-ab.rlib',tarfile.REGTYPE)]:
    with self.subTest(name=name,kind=kind),tempfile.TemporaryDirectory() as d:

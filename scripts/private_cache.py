@@ -14,6 +14,7 @@ import os
 import pathlib
 import re
 import shutil
+import stat
 import subprocess
 import sys
 import tarfile
@@ -172,16 +173,34 @@ def pack(root, config, destination):
         with gzip.GzipFile(fileobj=LimitedWriter(raw), mode='wb', compresslevel=1, mtime=0) as compressed:
             with tarfile.open(fileobj=compressed, mode='w|') as archive:
                 for path, name in cache_files(root, config):
-                    count += 1
-                    size = path.stat().st_size
-                    total += size
-                    if count > MAX_ENTRIES or size > MAX_FILE or total > MAX_EXPANDED:
-                        raise builder.SafeError('CACHE_EXPANDED_LIMIT')
-                    item = archive.gettarinfo(str(path), arcname=name)
-                    if not item.isfile() or item.size != size:
+                    # Cargo can hardlink .rlib and .lib outputs on Windows.
+                    # TarFile.gettarinfo deduplicates their inode as LNKTYPE,
+                    # which our restore correctly rejects. Archive the bytes of
+                    # each verified regular file; never admit a link entry.
+                    before = path.lstat()
+                    if (not stat.S_ISREG(before.st_mode) or
+                            getattr(before, 'st_file_attributes', 0) & getattr(stat, 'FILE_ATTRIBUTE_REPARSE_POINT', 0x400)):
                         raise builder.SafeError('CACHE_FILE_CHANGED')
-                    with path.open('rb') as stream:
+                    descriptor = os.open(path, os.O_RDONLY | getattr(os, 'O_BINARY', 0) | getattr(os, 'O_NOFOLLOW', 0))
+                    with os.fdopen(descriptor, 'rb') as stream:
+                        current = os.fstat(stream.fileno())
+                        if (not stat.S_ISREG(current.st_mode) or
+                                (before.st_dev, before.st_ino, before.st_size, before.st_mtime_ns) !=
+                                (current.st_dev, current.st_ino, current.st_size, current.st_mtime_ns)):
+                            raise builder.SafeError('CACHE_FILE_CHANGED')
+                        count += 1
+                        size = current.st_size
+                        total += size
+                        if count > MAX_ENTRIES or size > MAX_FILE or total > MAX_EXPANDED:
+                            raise builder.SafeError('CACHE_EXPANDED_LIMIT')
+                        item = tarfile.TarInfo(name)
+                        item.size = size
+                        item.mode = stat.S_IMODE(current.st_mode) & 0o777
+                        item.mtime = current.st_mtime
                         archive.addfile(item, stream)
+                        after = os.fstat(stream.fileno())
+                        if (current.st_size, current.st_mtime_ns) != (after.st_size, after.st_mtime_ns):
+                            raise builder.SafeError('CACHE_FILE_CHANGED')
     return count, total
 
 

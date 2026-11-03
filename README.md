@@ -74,6 +74,19 @@ Mỗi stage ghi duration, return code, cache hit/miss và build policy vào `bui
 
 Workflow **Verify signed delivery without publication** nhận SHA source đầy đủ, chạy đúng kiểm tra và đóng gói/ký cả hai nền tảng, rồi chỉ gửi diagnostics/cache vào repo private. Nó không có quyền ghi release public, không cập nhật feed; helper cũng từ chối upload public một bundle verification. Chạy hai lần cùng source để đo build sạch và cache hit. Baseline trước tối ưu của [run 41587411761](https://github.com/MinhOmega/sabo-lab-build/actions/runs/41587411761): Windows **30m35**, Mac **14m11**. Kết quả mới phải đo trên CI, không ước lượng thành số đã đạt.
 
+Kết quả kiểm chứng sau tối ưu (verification có ký, không phát hành):
+
+| Nền tảng | Baseline | Build sạch tối ưu | Lượt kế tiếp | Cache |
+| --- | ---: | ---: | ---: | --- |
+| Windows x64 | 30m35 | 19m49 | 18m52 | Hai lượt đều cache miss; chưa tuyên bố lợi ích Windows cache |
+| Mac ARM64 | 14m11 | 13m47 | 5m33 | Lượt kế tiếp cache hit; tải/kiểm tra/giải nén 43 giây |
+
+[Build sạch 41592155681](https://github.com/MinhOmega/sabo-lab-build/actions/runs/41592155681) và [lượt kiểm chứng tiếp theo 41596937727](https://github.com/MinhOmega/sabo-lab-build/actions/runs/41596937727) đều qua toàn bộ kiểm tra, đóng gói và ký. Build sạch Mac gồm 100 giây tạo/lưu cache lần đầu; các stage build mất 670 giây. Mac cache hit giảm tổng thời gian khoảng 61% so với baseline; Windows chưa có cache đã giảm 35–38%. Đây là số đo trên hosted runner ở những lượt cụ thể; tải runner và thay đổi compiler/profile có thể làm thời gian khác đi. Log cả hai nền tảng không còn warning compiler, Node experimental hoặc npm; GitHub vẫn có thể thêm notice về sức chứa ARM64 runner.
+
+Cache Windows ban đầu bị từ chối tại bước đóng gói bởi `CACHE_FILE_CHANGED`. Bài test hardlink tái hiện đúng lỗi: Cargo có thể dùng cùng inode cho các file `.rlib`/`.lib`, còn `tarfile.gettarinfo` đổi bản thứ hai thành link entry. Bản sửa ghi mỗi file regular từ handle đã xác minh thành dữ liệu thường; vẫn từ chối symlink/reparse point, thay đổi file, path sai và mọi link entry khi restore. Giới hạn cache giữ nguyên; cache không có hoặc không hợp lệ vẫn build sạch. Chưa có số đo cache hit Windows thực tế.
+
+Windows cleanup đã được kiểm chứng riêng trong [41593134576](https://github.com/MinhOmega/sabo-lab-build/actions/runs/41593134576): tất cả native tests và bước xóa thư mục private đều thành công, không warning/error annotation. Cache hit Mac vẫn compile lại các package `sabo-*` hiện tại trong cả test/release; app không được lấy từ cache cũ.
+
 Các action Node24 đã ghim SHA, cache tự động của setup-node tắt rõ ràng, runner Ubuntu/Mac dùng version cụ thể để tránh warning đổi nhãn `latest`. Việc nâng action không tắt warning từ compiler; warning source cần sửa đúng nguyên nhân.
 
 Tài liệu đối chiếu: [runner CPU/RAM](https://docs.github.com/en/actions/reference/runners/github-hosted-runners), [cache security](https://docs.github.com/en/actions/reference/workflows-and-actions/dependency-caching), [Cargo build cache](https://doc.rust-lang.org/cargo/reference/build-cache.html), [Cargo profiles/Thin LTO](https://doc.rust-lang.org/cargo/reference/profiles.html), [checkout Node24](https://github.com/actions/checkout), [setup-node và tắt automatic cache](https://github.com/actions/setup-node).
