@@ -8,7 +8,9 @@ Pipeline chạy trên runner chuẩn `windows-2022`: tải đúng commit private
 
 ## Bản build đã kiểm chứng
 
-[Run 41206806274](https://github.com/MinhOmega/sabo-lab-build/actions/runs/41206806274) đã thành công trên Windows2022 từ private commit `bc1ed4a1b025bcb3279b8ac1d8d7777d9055c5af`: 257 frontend tests, 186 desktop native tests, 160 tests của 7 crate và NSIS release build. Installer0.3.10 khoảng41MB ở [prerelease private](https://github.com/MinhOmega/sabo-lab-next/releases/tag/windows-ci-bc1ed4a1b025). SHA-256 được đối chiếu sau khi tải. Chưa kiểm chứng install/gameplay Windows hoặc ký Authenticode/updater.
+Bản [0.3.27](https://github.com/MinhOmega/sabo-lab-build/releases/tag/app-v0.3.27) đã qua [CI Windows/macOS](https://github.com/MinhOmega/sabo-lab-build/actions/runs/41655132389): 435 frontend tests, 31 Python tests, desktop Windows 255/Mac 257 và license 7. Cả hai bộ cài được ký updater; file tải công khai đã xác minh chữ ký gắn phiên bản, hash khớp CI và feed cập nhật. Cache dependency đều hit, không có cảnh báo compiler. Chữ ký updater không thay Authenticode hoặc notarization. Gameplay trên từng giả lập vẫn cần kiểm tra qua log khách.
+
+Bản test private 0.3.10 và các lượt cũ được giữ làm lịch sử; người dùng nên tải [bản phát hành mới nhất](https://github.com/MinhOmega/sabo-lab-build/releases/latest).
 
 ## Phát hành Mac/Windows có chữ ký
 
