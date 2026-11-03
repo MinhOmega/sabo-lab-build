@@ -2,7 +2,9 @@
 """Signed binary releases; private source and diagnostics stay in private repo."""
 import argparse, base64, datetime, hashlib, json, os, pathlib, re, shutil, subprocess, sys, urllib.error, urllib.parse, urllib.request
 import builder
+import build_runtime
 PUBLIC = 'MinhOmega/sabo-lab-build'
+STAGE_NAMES = ['assets', 'npm-install', 'frontend-build', 'frontend-tests', 'python-tests', 'core-tests', 'native-bootstrap-tests', 'desktop-tests', 'license-tests', 'release-config', 'signed-package']
 TARGETS = {'macos':('aarch64-apple-darwin','app','darwin-aarch64','macos/*.app.tar.gz','macos-arm64.app.tar.gz'),
            'windows':('x86_64-pc-windows-msvc','nsis','windows-x86_64','nsis/*.exe','windows-x64-setup.exe')}
 
@@ -30,19 +32,20 @@ def upload(release,path):
   with urllib.request.urlopen(req,timeout=300) as r:return json.load(r)
  except urllib.error.HTTPError as e:raise builder.SafeError('Public asset upload failed (HTTP %s).'%e.code) from None
 
-def run_build(root,platform):
+def run_build(root,platform,verification=False):
  target,bundle,_,pattern,suffix=TARGETS[platform]
  if (platform=='windows')!=(os.name=='nt'):raise builder.SafeError('Wrong build runner.')
  source=root/'source';out=root/'private-output';out.mkdir(exist_ok=True);request=json.loads((root/'request.json').read_text())
  version=json.loads((source/'apps/desktop/package.json').read_text())['version']
  if not re.fullmatch(r'\d+\.\d+\.\d+',version):raise builder.SafeError('Expected stable explicit release semver.')
  status={**request,'version':version,'platform':platform,'status':'failed','tag':'signed-'+platform+'-ci-'+request['sourceCommit'][:12]}
- env={k:v for k,v in os.environ.items() if not any(s in k.upper() for s in ('TOKEN','SECRET','PASSWORD','SIGNING_PRIVATE'))}
- env.update(CARGO_TARGET_DIR=str(root/'target'),CARGO_INCREMENTAL='0',CARGO_BUILD_JOBS='1',SABO_BUILD_REVISION=request['sourceCommit'],PYTHONUTF8='1')
- env.pop('SABO_FAKE_AGENT',None);env.pop('SABO_AGENT_SCRIPT',None)
+ env=build_runtime.environment(root,platform,request['sourceCommit'])
+ status.update(buildPolicy=build_runtime.policy(platform),stages=[])
+ if verification:status.update(tag='verify-'+platform+'-ci-'+request['sourceCommit'][:12]+'-'+os.environ.get('GITHUB_RUN_ID','local'),verificationOnly=True)
+ if (root/'cache-restore.json').is_file():status['cacheRestore']=json.loads((root/'cache-restore.json').read_text())
  npm='npm.cmd' if os.name=='nt' else 'npm';desktop=source/'apps/desktop';overlay=root/'updater-config.json'
  steps=[(source,[sys.executable,'scripts/prepare-assets.py']),
-        (desktop,[npm,'ci','--no-audit','--no-fund']),
+        (desktop,[npm,'ci','--no-audit','--no-fund','--ignore-scripts']),
         (desktop,[npm,'run','build']),(desktop,['node','--test']),
         (source,[sys.executable,'-B','-m','unittest','discover','-s','scripts/tests','-p','test_*.py']),
         (source,['cargo','test','--locked','--manifest-path','crates/sabo-core/Cargo.toml']),
@@ -61,9 +64,10 @@ def run_build(root,platform):
     if not private:raise builder.SafeError('Missing updater signing key.')
     child.update(TAURI_SIGNING_PRIVATE_KEY=private,TAURI_SIGNING_PRIVATE_KEY_PASSWORD=os.environ.get('TAURI_SIGNING_PRIVATE_KEY_PASSWORD',''))
    log.write(('\nSTAGE %d\n'%index).encode());log.flush()
-   try:r=subprocess.run(args,cwd=cwd,env=child,stdout=log,stderr=subprocess.STDOUT,timeout=5400)
-   except (OSError,subprocess.TimeoutExpired):failed=index;break
-   if r.returncode:failed=index;break
+   stage=build_runtime.run_stage(args,cwd,child,log,5400,STAGE_NAMES[index-1])
+   status['stages'].append(stage)
+   print('Private stage %d completed in %.1fs.'%(index,stage['durationSeconds']),flush=True)
+   if not stage['success']:failed=index;break
   if failed is None:
    files=list((root/'target'/target/'release/bundle').glob(pattern))
    if len(files)!=1:failed='artifact-count'
@@ -104,6 +108,7 @@ def prepare(tag):
 
 def upload_bundle(root,tag):
  out=root/'private-output';status=json.loads((out/'build-info.json').read_text())
+ if status.get('verificationOnly'):raise builder.SafeError('Verification bundles cannot be published.')
  if status['status']!='success' or tag!='app-v'+status['version']:raise builder.SafeError('Build/tag mismatch.')
  release=find_release(tag)
  if not release or not release['draft']:raise builder.SafeError('Expected existing draft release.')
@@ -137,10 +142,11 @@ def finalize(tag):
  print('Published signed macOS/Windows release and anonymous updater feed.')
 
 def main():
- p=argparse.ArgumentParser();p.add_argument('action',choices=['prepare','build','diagnostics','upload','finalize']);p.add_argument('--root',type=pathlib.Path);p.add_argument('--platform',choices=TARGETS);p.add_argument('--tag',required=True);a=p.parse_args()
+ p=argparse.ArgumentParser();p.add_argument('action',choices=['prepare','build','verify','diagnostics','upload','finalize']);p.add_argument('--root',type=pathlib.Path);p.add_argument('--platform',choices=TARGETS);p.add_argument('--tag',default='');a=p.parse_args()
  try:
   if a.action=='prepare':prepare(a.tag)
   elif a.action=='build':run_build(a.root,a.platform)
+  elif a.action=='verify':run_build(a.root,a.platform,verification=True)
   elif a.action=='diagnostics':diagnostics(a.root)
   elif a.action=='upload':upload_bundle(a.root,a.tag)
   else:finalize(a.tag)

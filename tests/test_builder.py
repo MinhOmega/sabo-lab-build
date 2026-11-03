@@ -1,4 +1,5 @@
-import importlib.util, io, json, pathlib, tarfile, tempfile, unittest
+import importlib.util, io, json, pathlib, tarfile, tempfile, unittest, sys
+sys.path.insert(0,str(pathlib.Path(__file__).parents[1]/'scripts'))
 from unittest.mock import patch
 spec=importlib.util.spec_from_file_location('builder',pathlib.Path(__file__).parents[1]/'scripts/builder.py')
 b=importlib.util.module_from_spec(spec);spec.loader.exec_module(b)
@@ -75,7 +76,7 @@ class BuilderTests(unittest.TestCase):
     self.assertEqual(api.call_count,1)
  def test_workflow_does_not_expose_public_artifacts_or_untrusted_events(self):
   workflow=(pathlib.Path(__file__).parents[1]/'.github/workflows/windows-private-source.yml').read_text()
-  for value in ['upload-artifact','cache:','pull_request:','pull_request_target:','repository_dispatch:']:self.assertNotIn(value,workflow)
+  for value in ['upload-artifact','uses: actions/cache@','pull_request:','pull_request_target:','repository_dispatch:']:self.assertNotIn(value,workflow)
   self.assertIn('persist-credentials: false',workflow);self.assertIn('environment: private-build',workflow)
   self.assertIn('secrets.SABO_PRIVATE_REPO_TOKEN',workflow)
   self.assertNotIn('secrets.SABO_PRIVATE_REPO_TOKEN',workflow.split('name: Test and build')[1].split('- name: Upload')[0])

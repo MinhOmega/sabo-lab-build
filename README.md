@@ -43,7 +43,7 @@ Member cần Windows x64 và Nox Android7 32-bit/LDPlayer5 Android7 32-bit. Bả
 
 ## Quyền riêng và giới hạn
 
-Không chạy workflow build có secret từ pull request, fork, hoặc input shell tự do. Actions ghim SHA, token chỉ có ở bước fetch/upload; bước build bỏ token/secret khỏi environment và không persist credential vào Git config. Không dùng shared/private cache, public artifact hay đăng detailed exceptions của source. Helper kiểm tra private repo đích trước fetch/upload và chặn archive traversal/link cho các file được trích xuất.
+Không chạy workflow build có secret từ pull request, fork, hoặc input shell tự do. Actions ghim SHA, token chỉ có ở bước fetch/upload; bước build bỏ token/secret khỏi environment và không persist credential vào Git config. Không dùng cache/artifact công khai cho dữ liệu private hoặc đăng detailed exceptions của source. Cache dependency nếu bật chỉ nằm trong draft của repo private theo chính sách bên dưới. Helper kiểm tra private repo đích trước fetch/upload và chặn archive traversal/link cho các file được trích xuất.
 
 Việc chạy **source private đáng tin cậy** trong public runner không phải sandbox chống source độc hại. Source/package build script bị cài mã độc có thể chủ động gọi mạng hoặc ghi kênh GitHub Actions; redirect stdout không ngăn mọi cách exfiltration. Chỉ build SHA/dependency đã review và không cấp secrets tùy ý. Private source dùng trên runner phải tuân thủ quyền của các artifact đi kèm.
 
@@ -56,3 +56,24 @@ python3 -B -m unittest discover -s tests
 ```
 
 Tham chiếu: [GitHub standard public runners miễn phí](https://docs.github.com/en/billing/concepts/product-billing/github-actions), [Actions secure use](https://docs.github.com/en/actions/reference/security/secure-use), [release API/Contents permission](https://docs.github.com/en/rest/releases/releases), [release assets](https://docs.github.com/en/rest/releases/assets).
+
+## Tăng tốc và kiểm chứng pipeline
+
+CI dùng tối đa **3 Cargo jobs trên Windows** (runner 4 CPU/16 GB) và **2 jobs trên Mac ARM64** (3 CPU/7 GB), khác với giới hạn 1 job để bảo vệ máy Mac local. Release giữ tối ưu cấp 3, panic/strip theo source, nhưng đổi sang **Thin LTO và 16 codegen units**. Thin LTO giảm chi phí link; số codegen units lớn hơn có thể thay đổi kích thước hoặc hiệu năng binary nên cần xem kết quả kiểm chứng, không coi thời gian build nhanh hơn là bằng chứng gameplay.
+
+Test CI không tạo PDB/DWARF; thông báo compiler và các log trace trong app vẫn có vị trí source. Mọi kiểm tra bootstrap, desktop, commercial-license, frontend và chữ ký vẫn chạy. `npm ci --ignore-scripts` bỏ các lifecycle hook không cần cho build (gồm optional file watcher); nếu dependency mới thật sự cần hook thì build sẽ lỗi để review, không tự thực thi hook chưa duyệt.
+
+Source/private compiler output **không** được đưa vào Actions cache của repo public. Cache dependency được lưu thành draft trong chính repo private bằng secret Contents đã có:
+
+- Chỉ Cargo registry và output của dependency bên thứ ba. Không lưu source tree, output của local/path package, target riêng của app, installer/bundle, khóa ký hoặc credentials. Tên lib/bin/test tự sinh cũng bị loại. Local code và frontend luôn build lại từ SHA được chọn, kể cả khi mtime của commit mới có trước lần build cũ.
+- Cache key gồm OS/target/image, Rust toolchain, dependency lock/config, native manifest, compile flags/profile và đường dẫn build. Đổi version app không làm mất cache dependency; đổi dependency/toolchain/profile thì tạo key mới.
+- Manifest/part/archive đều kiểm tra size/hash. Giới hạn 1 GiB nén, 6 GiB giải nén, 512 MiB/file, 200.000 file; chỉ tối đa 2 cache draft mỗi nền tảng. Archive traversal, symlink/hardlink, Windows stream/device name và file local package đều bị chặn trước khi chuyển cache vào build directory.
+- Manifest hoàn tất upload cuối cùng. Cache miss, hết hạn hoặc hỏng sẽ build sạch; không bỏ kiểm tra, không dùng binary cũ. Cache hoàn tất là immutable. PAT chỉ gửi tới GitHub API/upload; URL tải asset đã ký không nhận Authorization.
+
+Mỗi stage ghi duration, return code, cache hit/miss và build policy vào `build-info.json` private. Log tổng hợp chỉ do process Python giữ; compiler nhận file tạm riêng để compiler server trên Windows không giữ `build-detail.txt` và làm hỏng bước dọn source.
+
+Workflow **Verify signed delivery without publication** nhận SHA source đầy đủ, chạy đúng kiểm tra và đóng gói/ký cả hai nền tảng, rồi chỉ gửi diagnostics/cache vào repo private. Nó không có quyền ghi release public, không cập nhật feed; helper cũng từ chối upload public một bundle verification. Chạy hai lần cùng source để đo build sạch và cache hit. Baseline trước tối ưu của [run 41587411761](https://github.com/MinhOmega/sabo-lab-build/actions/runs/41587411761): Windows **30m35**, Mac **14m11**. Kết quả mới phải đo trên CI, không ước lượng thành số đã đạt.
+
+Các action Node24 đã ghim SHA, cache tự động của setup-node tắt rõ ràng, runner Ubuntu/Mac dùng version cụ thể để tránh warning đổi nhãn `latest`. Việc nâng action không tắt warning từ compiler; warning source cần sửa đúng nguyên nhân.
+
+Tài liệu đối chiếu: [runner CPU/RAM](https://docs.github.com/en/actions/reference/runners/github-hosted-runners), [cache security](https://docs.github.com/en/actions/reference/workflows-and-actions/dependency-caching), [Cargo build cache](https://doc.rust-lang.org/cargo/reference/build-cache.html), [Cargo profiles/Thin LTO](https://doc.rust-lang.org/cargo/reference/profiles.html), [checkout Node24](https://github.com/actions/checkout), [setup-node và tắt automatic cache](https://github.com/actions/setup-node).

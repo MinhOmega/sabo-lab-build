@@ -36,4 +36,25 @@ class SignedReleaseTests(unittest.TestCase):
    self.assertTrue(any('crates/sabo-bootstrap/Cargo.toml' in c for c in calls))
    self.assertFalse(any('tauri' in c for c in calls))
    self.assertEqual(json.loads((root/'private-output/build-info.json').read_text())['status'],'failed')
+ def test_even_a_successful_verification_bundle_cannot_be_uploaded_publicly(self):
+  with tempfile.TemporaryDirectory() as d:
+   root=pathlib.Path(d);out=root/'private-output';out.mkdir();(out/'build-info.json').write_text(json.dumps({'status':'success','version':'0.3.19','verificationOnly':True}))
+   with mock.patch.object(signed,'find_release') as lookup,mock.patch.object(signed,'upload') as upload:
+    with self.assertRaises(signed.builder.SafeError):signed.upload_bundle(root,'app-v0.3.19')
+    lookup.assert_not_called();upload.assert_not_called()
+ def test_verification_workflow_cannot_publish_binary_or_feed(self):
+  workflow=(ROOT/'.github/workflows/verify-delivery.yml').read_text()
+  self.assertIn('signed_release.py verify',workflow)
+  self.assertIn('permissions:\n      contents: read',workflow)
+  self.assertNotIn('GH_TOKEN:',workflow)
+  self.assertNotIn('signed_release.py upload',workflow)
+  self.assertNotIn('signed_release.py finalize',workflow)
+  self.assertNotIn('pull_request:',workflow)
+ def test_actions_are_pinned_node24_and_public_cache_is_disabled(self):
+  for name in ['self-test.yml','signed-desktop.yml','windows-private-source.yml','verify-delivery.yml']:
+   source=(ROOT/'.github/workflows'/name).read_text()
+   self.assertNotIn('ubuntu-latest',source)
+   self.assertIn('actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1',source)
+   self.assertNotIn('uses: actions/cache@',source)
+   if 'actions/setup-node@' in source:self.assertIn('package-manager-cache: false',source)
 if __name__=='__main__':unittest.main()

@@ -1,0 +1,77 @@
+name: Verify signed delivery without publication
+on:
+  workflow_dispatch:
+    inputs:
+      source_sha:
+        description: Full reviewed private source SHA
+        type: string
+        required: true
+permissions:
+  contents: read
+concurrency:
+  group: verify-signed-delivery
+  cancel-in-progress: false
+jobs:
+  verify:
+    environment: private-build
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15
+            platform: macos
+            target: aarch64-apple-darwin
+          - runner: windows-2022
+            platform: windows
+            target: x86_64-pc-windows-msvc
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 90
+    defaults:
+      run:
+        shell: bash
+    env:
+      BUILD_PLATFORM: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Validate public orchestration without private access
+        run: python -B -m unittest discover -s tests
+      - name: Prepare ephemeral build directory
+        run: python -c 'import os; p=os.path.join(os.environ["RUNNER_TEMP"],"sabo-signed-"+os.environ["BUILD_PLATFORM"]); open(os.environ["GITHUB_ENV"],"a",encoding="utf-8").write("PRIVATE_BUILD_ROOT="+p+"\n")'
+      - name: Fetch pinned private source
+        env:
+          SABO_PRIVATE_REPO_TOKEN: ${{ secrets.SABO_PRIVATE_REPO_TOKEN }}
+          SOURCE_SHA: ${{ inputs.source_sha }}
+        run: python scripts/builder.py fetch --root "$PRIVATE_BUILD_ROOT" --sha "$SOURCE_SHA"
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: 24
+          package-manager-cache: false
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec
+        with:
+          targets: ${{ matrix.target }}
+      - name: Restore private third-party compiler cache
+        env:
+          SABO_PRIVATE_REPO_TOKEN: ${{ secrets.SABO_PRIVATE_REPO_TOKEN }}
+        run: python scripts/private_cache.py restore --root "$PRIVATE_BUILD_ROOT" --platform "$BUILD_PLATFORM"
+      - name: Validate and build signed bundle without publication
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ''
+        run: python scripts/signed_release.py verify --root "$PRIVATE_BUILD_ROOT" --platform "$BUILD_PLATFORM"
+      - name: Save successful third-party compiler cache privately
+        if: success()
+        env:
+          SABO_PRIVATE_REPO_TOKEN: ${{ secrets.SABO_PRIVATE_REPO_TOKEN }}
+        run: python scripts/private_cache.py save --root "$PRIVATE_BUILD_ROOT" --platform "$BUILD_PLATFORM"
+      - name: Save private diagnostic log only
+        if: always()
+        env:
+          SABO_PRIVATE_REPO_TOKEN: ${{ secrets.SABO_PRIVATE_REPO_TOKEN }}
+        run: python scripts/signed_release.py diagnostics --root "$PRIVATE_BUILD_ROOT"
+      - name: Clean private source and output
+        if: always()
+        run: python -c 'import os,shutil; shutil.rmtree(os.environ["PRIVATE_BUILD_ROOT"],ignore_errors=True)'

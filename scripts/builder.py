@@ -2,6 +2,8 @@
 """Public orchestration only. Private build output never goes to Actions stdout."""
 import argparse, datetime, hashlib, json, os, pathlib, re, shutil, subprocess, sys, tarfile, urllib.error, urllib.parse, urllib.request
 
+import build_runtime
+
 REPOSITORY = 'MinhOmega/sabo-lab-next'
 API = 'https://api.github.com'
 MAX_ARCHIVE = 512 * 1024**2
@@ -124,7 +126,7 @@ def commands(source,native_only=False):
  if native_only:
   yield source,['cargo','test','--locked','--manifest-path','crates/sabo-bootstrap/Cargo.toml','--','--nocapture']
   return
- yield desktop,[npm,'ci','--no-audit','--no-fund']
+ yield desktop,[npm,'ci','--no-audit','--no-fund','--ignore-scripts']
  yield desktop,[npm,'run','build']
  yield desktop,['node','--test']
  for crate in ['sabo-core','sabo-bootstrap','sabo-task-api','sabo-transport','sabo-navigation','sabo-routines','sabo-quests']:
@@ -137,18 +139,16 @@ def build(root,native_only=False):
  request=json.loads((root/'request.json').read_text());out=root/'private-output';out.mkdir()
  status={'status':'failed',**request,'runner':'windows-2022','target':'x86_64-pc-windows-msvc','startedAt':datetime.datetime.now(datetime.timezone.utc).isoformat()}
  if native_only:status.update(tag='native-runtime-ci-'+request['sourceCommit'][:12],nativeCheckOnly=True)
- env={k:v for k,v in os.environ.items() if not any(s in k.upper() for s in ('TOKEN','SECRET','PASSWORD','SIGNING_PRIVATE'))}
- env.update(CARGO_TARGET_DIR=str(root/'target'),CARGO_INCREMENTAL='0',CARGO_BUILD_JOBS='1')
- # Prevent a developer variable from enabling mock gameplay in a test release.
- env.pop('SABO_FAKE_AGENT',None);env.pop('SABO_AGENT_SCRIPT',None)
+ env=build_runtime.environment(root,'windows',request['sourceCommit'])
+ status.update(buildPolicy=build_runtime.policy('windows'),stages=[])
  log=out/'build-detail.txt'; failed=None
  with log.open('wb') as details:
   for index,(cwd,args) in enumerate(commands(root/'source',native_only),1):
    print('Private validation/build stage %d is running.' % index,flush=True)
    details.write(('\nSTAGE %d: %s\n'%(index,' '.join(args))).encode());details.flush()
-   try: result=subprocess.run(args,cwd=cwd,env=env,stdout=details,stderr=subprocess.STDOUT,timeout=600 if native_only else 5400)
-   except (OSError,subprocess.TimeoutExpired): failed=index;break
-   if result.returncode: failed=index;break
+   stage=build_runtime.run_stage(args,cwd,env,details,600 if native_only else 5400,'stage-'+str(index))
+   status['stages'].append(stage)
+   if not stage['success']:failed=index;break
  if failed is None and native_only:status.update(status='success',gameplayVerified=False)
  elif failed is None:
   files=list((root/'target/x86_64-pc-windows-msvc/release/bundle/nsis').glob('*.exe'))
