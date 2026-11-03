@@ -45,6 +45,7 @@ def run_build(root,platform):
         (desktop,[npm,'ci','--no-audit','--no-fund']),
         (desktop,[npm,'run','build']),(desktop,['node','--test']),
         (source,[sys.executable,'-B','-m','unittest','discover','-s','scripts/tests','-p','test_*.py']),
+        (source,['cargo','test','--locked','--manifest-path','crates/sabo-core/Cargo.toml']),
         (source,['cargo','test','--locked','--manifest-path','crates/sabo-bootstrap/Cargo.toml']),
         (source,['cargo','test','--locked','--manifest-path','apps/desktop/src-tauri/Cargo.toml','--lib']),
         (source,['cargo','test','--locked','--manifest-path','apps/desktop/src-tauri/Cargo.toml','--lib','--features','commercial-license','license::tests']),
