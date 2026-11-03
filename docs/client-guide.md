@@ -1,5 +1,7 @@
 # Dùng Sabo Lab
 
+Hướng dẫn này áp dụng cho **0.3.27 trở lên**, bao gồm nhập tài khoản chưa có danh sách nhân vật.
+
 Ảnh dưới dùng tài khoản minh họa và IPC mô phỏng, không phải kết quả chạy game thật.
 
 ## Kết nối và nhập tài khoản
@@ -56,4 +58,4 @@ Các tài khoản trên cùng giả lập chạy lần lượt; mỗi tài kho�
 
 Khi có lỗi, mở **Hỗ trợ & log** để xem trạng thái gửi log hoặc xuất ZIP. Cài mới mặc định gửi log mới đã che thông tin nhạy cảm; lựa chọn tắt đã lưu được giữ nguyên. Ghi thêm thời điểm, thao tác và kết quả mong đợi khi báo lỗi. Không gửi CSV có mật khẩu.
 
-Các bản0.3.26trở đi hỗ trợ đọc trước giờ và cấp từng ô. Ảnh dùng dữ liệu minh họa và có thể mới hơn phiên bản bạn đang cài. Source và log chi tiết vẫn ở repository private.
+App đọc trước giờ sự kiện khi có thời gian chờ và lưu cấp theo từng ô. Ảnh có thể mới hơn phiên bản bạn đang cài. Source và log chi tiết vẫn ở repository private.
