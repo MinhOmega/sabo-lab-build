@@ -4,6 +4,7 @@ import pathlib
 import sys
 import tempfile
 import types
+import time
 import unittest
 from unittest import mock
 sys.path.insert(0, str(pathlib.Path(__file__).parents[1] / 'scripts'))
@@ -22,11 +23,27 @@ class RuntimeTests(unittest.TestCase):
   def run(args,**kw):
    self.assertIsNot(kw['stdout'],log);kw['stdout'].write(b'compiler fixture output\n');kw['stdout'].flush()
    return types.SimpleNamespace(returncode=0)
-  with mock.patch.object(runtime.subprocess,'run',side_effect=run):
+  with mock.patch.object(runtime,'execute',side_effect=run):
    stage=runtime.run_stage(['fixture'],pathlib.Path('/tmp'),{},log,5,'compile')
   self.assertEqual(log.getvalue(),b'compiler fixture output\n');self.assertTrue(stage['success']);self.assertEqual(stage['name'],'compile');self.assertGreaterEqual(stage['durationSeconds'],0)
  def test_timeout_is_a_failed_timed_stage_without_exposing_exception_text(self):
   log=io.BytesIO()
-  with mock.patch.object(runtime.subprocess,'run',side_effect=runtime.subprocess.TimeoutExpired(['private/path'],1)):
+  with mock.patch.object(runtime,'execute',side_effect=runtime.subprocess.TimeoutExpired(['private/path'],1)):
    stage=runtime.run_stage(['fixture'],pathlib.Path('/tmp'),{},log,1,'timeout')
   self.assertFalse(stage['success']);self.assertEqual(stage['failure'],'timeout');self.assertNotIn(b'private/path',log.getvalue())
+
+ @unittest.skipUnless(os.name=='nt','Windows Job Object lifecycle')
+ def test_owned_windows_job_removes_lingering_descendant_cwd_lock(self):
+  with tempfile.TemporaryDirectory() as d:
+   root=pathlib.Path(d);held=root/'compiler-cwd';held.mkdir();pid=root/'child.pid';log=io.BytesIO()
+   program="import subprocess,sys,pathlib; p=subprocess.Popen([sys.executable,'-c','import time; time.sleep(120)'],cwd=sys.argv[1]); pathlib.Path(sys.argv[2]).write_text(str(p.pid))"
+   env=runtime.environment(root,'windows')
+   result=runtime.run_stage([sys.executable,'-c',program,str(held),str(pid)],root,env,log,20,'owned-child')
+   self.assertTrue(result['success']);self.assertTrue(pid.exists())
+   deadline=time.monotonic()+5
+   while True:
+    try:held.rmdir();break
+    except PermissionError:
+     if time.monotonic()>=deadline:raise
+     time.sleep(.05)
+   self.assertFalse(held.exists())

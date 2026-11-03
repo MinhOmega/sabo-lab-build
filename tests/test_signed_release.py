@@ -31,7 +31,7 @@ class SignedReleaseTests(unittest.TestCase):
     calls.append(args);self.assertEqual(kwargs['env']['SABO_BUILD_REVISION'],revision)
     self.assertNotIn('TAURI_SIGNING_PRIVATE_KEY',kwargs['env'])
     return types.SimpleNamespace(returncode=1 if 'crates/sabo-bootstrap/Cargo.toml' in args else 0)
-   with mock.patch.object(signed.subprocess,'run',side_effect=run),mock.patch.dict(signed.os.environ,{'TAURI_SIGNING_PRIVATE_KEY':'fixture-only-secret'}):
+   with mock.patch.object(signed.build_runtime,'execute',side_effect=run),mock.patch.dict(signed.os.environ,{'TAURI_SIGNING_PRIVATE_KEY':'fixture-only-secret'}):
     with self.assertRaises(signed.builder.SafeError):signed.run_build(root,platform)
    self.assertTrue(any('crates/sabo-bootstrap/Cargo.toml' in c for c in calls))
    self.assertFalse(any('tauri' in c for c in calls))

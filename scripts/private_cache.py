@@ -19,6 +19,7 @@ import sys
 import tarfile
 import tempfile
 import tomllib
+import traceback
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -177,7 +178,7 @@ def pack(root, config, destination):
                     if count > MAX_ENTRIES or size > MAX_FILE or total > MAX_EXPANDED:
                         raise builder.SafeError('CACHE_EXPANDED_LIMIT')
                     item = archive.gettarinfo(str(path), arcname=name)
-                    if not item.isfile():
+                    if not item.isfile() or item.size != size:
                         raise builder.SafeError('CACHE_FILE_CHANGED')
                     with path.open('rb') as stream:
                         archive.addfile(item, stream)
@@ -263,6 +264,7 @@ def restore(root, config):
         download_asset(manifest_asset, meta, MAX_MANIFEST)
         data = json.loads(meta.read_text(encoding='utf-8'))
         if (data.get('schema') != SCHEMA or data.get('key') != config['key'] or
+                data.get('platform') != config['platform'] or data.get('target') != config['target'] or
                 data.get('workspaceNames') != config['workspaceNames'] or
                 not re.fullmatch('[0-9a-f]{40}', data.get('sourceCommit', '')) or
                 not isinstance(data.get('parts'), list) or not 1 <= len(data['parts']) <= 8):
@@ -382,15 +384,23 @@ def main():
     root = a.root.resolve()
     started = datetime.datetime.now(datetime.timezone.utc)
     outcome = 'unavailable'
+    error_info = None
     try:
         config = plan(root, a.platform)
         outcome = restore(root, config) if a.action == 'restore' else save(root, config)
-    except Exception:
+    except Exception as error:
+        code = str(error) if isinstance(error, builder.SafeError) else ''
+        safe_code = code if re.fullmatch('[A-Z][A-Z0-9_]{0,80}', code) else 'CACHE_SERVICE_UNAVAILABLE'
+        error_info = {'code': safe_code, 'type': type(error).__name__,
+            'frames': [{'file': pathlib.Path(frame.filename).name, 'line': frame.lineno, 'function': frame.name}
+                       for frame in traceback.extract_tb(error.__traceback__)[-8:]]}
+        if status := re.search(r'\bHTTP (\d{3})', code):error_info['httpStatus'] = int(status[1])
         # Cache availability is optional. Never print source paths, raw HTTP
         # failures, signed URLs, secrets or traceback into public Actions logs.
         outcome = 'unavailable-cold-build' if a.action == 'restore' else 'not-saved'
     elapsed = round((datetime.datetime.now(datetime.timezone.utc) - started).total_seconds(), 3)
     summary = {'action': a.action, 'outcome': outcome, 'durationSeconds': elapsed}
+    if error_info:summary['error'] = error_info
     builder.save_json(root / ('cache-' + a.action + '.json'), summary)
     info = root / 'private-output/build-info.json'
     if info.is_file():

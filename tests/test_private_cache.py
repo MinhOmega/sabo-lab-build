@@ -1,4 +1,5 @@
 import hashlib
+import contextlib
 import io
 import json
 import os
@@ -111,6 +112,11 @@ class CacheTests(unittest.TestCase):
     data=assets[asset['name']];self.assertLessEqual(len(data),limit);path.write_bytes(data);return hashlib.sha256(data).hexdigest()
    with mock.patch.object(cache.builder,'ensure_private'),mock.patch.object(cache.builder,'release_for',return_value=release),mock.patch.object(cache,'download_asset',side_effect=download):self.assertEqual(cache.restore(restored,c),'hit')
    self.assertEqual((restored/'target/debug/deps/libserde-ab.rlib').read_bytes(),b'compiled public dependency');self.assertFalse((restored/'target/debug/deps/libdesktop_lib-ab.rlib').exists());self.assertEqual((restored/'source/main.rs').read_bytes(),b'NEW CURRENT APPLICATION');self.assertEqual((restored/'cargo-home/registry/src/index/serde/src/lib.rs').read_bytes(),b'public crate source')
+ def test_cache_failure_diagnostics_never_echo_signed_urls_or_credentials(self):
+  with tempfile.TemporaryDirectory() as d,mock.patch.object(cache.sys,'argv',['private_cache.py','restore','--root',d,'--platform','windows']),mock.patch.object(cache,'plan',side_effect=cache.builder.SafeError('signed-url?token=fixture-private-value')):
+   output=io.StringIO()
+   with contextlib.redirect_stdout(output):self.assertEqual(cache.main(),0)
+   text=(pathlib.Path(d)/'cache-restore.json').read_text();self.assertNotIn('fixture-private-value',text+output.getvalue());self.assertEqual(json.loads(text)['error']['code'],'CACHE_SERVICE_UNAVAILABLE')
  def test_pruning_never_deletes_diagnostics_public_releases_or_other_platform(self):
   c=config();rows=[{'id':n,'name':cache.MARKER,'tag_name':'ci-deps-cache-v1-windows-'+str(n),'draft':True,'created_at':str(n)} for n in range(1,5)]
   rows += [{'id':20,'name':cache.MARKER,'tag_name':'signed-windows-ci-example','draft':True},{'id':21,'name':cache.MARKER,'tag_name':'ci-deps-cache-v1-macos-example','draft':True},{'id':22,'name':cache.MARKER,'tag_name':'ci-deps-cache-v1-windows-public','draft':False}]
