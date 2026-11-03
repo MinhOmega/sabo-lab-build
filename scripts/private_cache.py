@@ -29,13 +29,24 @@ import build_runtime
 
 SCHEMA = 1
 PART_SIZE = 128 * 1024**2
-MAX_ARCHIVE = 1024**3
+MAX_ARCHIVE_BY_PLATFORM = {'macos': 1024**3, 'windows': 2 * 1024**3}
 MAX_EXPANDED = 6 * 1024**3
 MAX_FILE = 512 * 1024**2
 MAX_ENTRIES = 200000
 MAX_MANIFEST = 128 * 1024
 KEEP_PER_PLATFORM = 2
 MARKER = 'Sabo private dependency cache v1'
+
+
+def archive_limit(config):
+    try:
+        return MAX_ARCHIVE_BY_PLATFORM[config['platform']]
+    except (KeyError, TypeError):
+        raise builder.SafeError('CACHE_PLATFORM') from None
+
+
+def part_limit(config):
+    return (archive_limit(config) + PART_SIZE - 1) // PART_SIZE
 
 
 def sha256(path):
@@ -156,11 +167,11 @@ def cache_files(root, config):
 
 
 class LimitedWriter:
-    def __init__(self, output):
-        self.output, self.size = output, 0
+    def __init__(self, output, limit):
+        self.output, self.size, self.limit = output, 0, limit
     def write(self, data):
         self.size += len(data)
-        if self.size > MAX_ARCHIVE:
+        if self.size > self.limit:
             raise builder.SafeError('CACHE_COMPRESSED_LIMIT')
         return self.output.write(data)
     def flush(self):
@@ -170,7 +181,7 @@ class LimitedWriter:
 def pack(root, config, destination):
     count = total = 0
     with destination.open('xb') as raw:
-        with gzip.GzipFile(fileobj=LimitedWriter(raw), mode='wb', compresslevel=1, mtime=0) as compressed:
+        with gzip.GzipFile(fileobj=LimitedWriter(raw, archive_limit(config)), mode='wb', compresslevel=1, mtime=0) as compressed:
             with tarfile.open(fileobj=compressed, mode='w|') as archive:
                 for path, name in cache_files(root, config):
                     # Cargo can hardlink .rlib and .lib outputs on Windows.
@@ -286,7 +297,8 @@ def restore(root, config):
                 data.get('platform') != config['platform'] or data.get('target') != config['target'] or
                 data.get('workspaceNames') != config['workspaceNames'] or
                 not re.fullmatch('[0-9a-f]{40}', data.get('sourceCommit', '')) or
-                not isinstance(data.get('parts'), list) or not 1 <= len(data['parts']) <= 8):
+                not isinstance(data.get('parts'), list) or not 1 <= len(data['parts']) <= part_limit(config) or
+                not isinstance(data.get('archiveBytes'), int) or not 0 < data['archiveBytes'] <= archive_limit(config)):
             raise builder.SafeError('CACHE_MANIFEST_POLICY')
         archive = work / 'deps.tar.gz'
         size = 0
@@ -302,7 +314,7 @@ def restore(root, config):
                 if digest != part['sha256']:
                     raise builder.SafeError('CACHE_PART_DIGEST')
                 size += path.stat().st_size
-                if size > MAX_ARCHIVE:
+                if size > archive_limit(config):
                     raise builder.SafeError('CACHE_COMPRESSED_LIMIT')
                 with path.open('rb') as stream:
                     shutil.copyfileobj(stream, output)
@@ -370,7 +382,7 @@ def save(root, config):
             'draft': True, 'prerelease': True})
         parts = []
         with archive.open('rb') as stream:
-            for index in range(8):
+            for index in range(part_limit(config)):
                 data = stream.read(PART_SIZE)
                 if not data:
                     break
@@ -418,7 +430,9 @@ def main():
         # failures, signed URLs, secrets or traceback into public Actions logs.
         outcome = 'unavailable-cold-build' if a.action == 'restore' else 'not-saved'
     elapsed = round((datetime.datetime.now(datetime.timezone.utc) - started).total_seconds(), 3)
-    summary = {'action': a.action, 'outcome': outcome, 'durationSeconds': elapsed}
+    summary = {'action': a.action, 'outcome': outcome, 'durationSeconds': elapsed,
+        'compressedLimitBytes': archive_limit({'platform': a.platform}),
+        'expandedLimitBytes': MAX_EXPANDED, 'partBytes': PART_SIZE}
     if error_info:summary['error'] = error_info
     builder.save_json(root / ('cache-' + a.action + '.json'), summary)
     info = root / 'private-output/build-info.json'

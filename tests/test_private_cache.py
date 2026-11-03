@@ -4,6 +4,7 @@ import io
 import json
 import os
 import pathlib
+import random
 import sys
 import tarfile
 import tempfile
@@ -90,6 +91,50 @@ class CacheTests(unittest.TestCase):
    root=pathlib.Path(d);write(root/'target/debug/deps/libserde-ab.rlib',b'x'*100)
    with mock.patch.object(cache,'MAX_EXPANDED',10):
     with self.assertRaises(cache.builder.SafeError):cache.pack(root,config(),root/'deps.tar.gz')
+ def test_platform_archive_budgets_bound_writer_and_preserve_the_mac_limit(self):
+  w=config();m={**w,'platform':'macos'}
+  self.assertEqual(cache.archive_limit(w),2*1024**3);self.assertEqual(cache.part_limit(w),16)
+  self.assertEqual(cache.archive_limit(m),1024**3);self.assertEqual(cache.part_limit(m),8)
+  with self.assertRaises(cache.builder.SafeError):cache.archive_limit({'platform':'unknown'})
+  output=io.BytesIO();writer=cache.LimitedWriter(output,4);writer.write(b'abcd')
+  with self.assertRaises(cache.builder.SafeError):writer.write(b'e')
+  self.assertEqual(output.getvalue(),b'abcd')
+  with tempfile.TemporaryDirectory() as d,mock.patch.object(cache,'MAX_ARCHIVE_BY_PLATFORM',{'windows':8192,'macos':4096}):
+   root=pathlib.Path(d);write(root/'target/debug/deps/libserde-ab.rlib',random.Random(1).randbytes(5000))
+   cache.pack(root,w,root/'windows.tar.gz')
+   self.assertGreater((root/'windows.tar.gz').stat().st_size,4096)
+   with self.assertRaises(cache.builder.SafeError):cache.pack(root,m,root/'macos.tar.gz')
+ def test_windows_cache_over_eight_parts_round_trips_without_relaxing_restore_policy(self):
+  with tempfile.TemporaryDirectory() as d,mock.patch.object(cache,'PART_SIZE',512),mock.patch.object(cache,'MAX_ARCHIVE_BY_PLATFORM',{'windows':8192,'macos':4096}):
+   base=pathlib.Path(d);root=base/'build';root.mkdir();c=config();assets={};release={'id':1,'draft':True,'name':cache.MARKER,'assets':[]}
+   write(root/'private-output/build-info.json',json.dumps({'status':'success','sourceCommit':SHA}).encode());write(root/'request.json',json.dumps({'sourceCommit':SHA}).encode())
+   payload=random.Random(2).randbytes(5000);write(root/'target/debug/deps/libserde-ab.rlib',payload)
+   write(root/'target/debug/deps/libdesktop_lib-ab.rlib',b'private current app')
+   def upload(_id,path):
+    data=path.read_bytes();assets[path.name]=data;release['assets'].append({'name':path.name,'id':len(assets),'size':len(data)})
+   with mock.patch.object(cache.builder,'ensure_private'),mock.patch.object(cache.builder,'release_for',return_value=None),mock.patch.object(cache.builder,'api',return_value=release),mock.patch.object(cache.builder,'upload_asset',side_effect=upload),mock.patch.object(cache,'prune'):
+    self.assertEqual(cache.save(root,c),'saved')
+   manifest=json.loads(assets['cache-manifest.json']);self.assertGreater(len(manifest['parts']),8);self.assertLessEqual(len(manifest['parts']),16)
+   self.assertEqual(release['assets'][-1]['name'],'cache-manifest.json')
+   restored=base/'next';restored.mkdir();write(restored/'source/main.rs',b'new source')
+   def download(asset,path,limit):
+    data=assets[asset['name']];self.assertLessEqual(len(data),limit);path.write_bytes(data);return hashlib.sha256(data).hexdigest()
+   with mock.patch.object(cache.builder,'ensure_private'),mock.patch.object(cache.builder,'release_for',return_value=release),mock.patch.object(cache,'download_asset',side_effect=download):
+    self.assertEqual(cache.restore(restored,c),'hit')
+   self.assertEqual((restored/'target/debug/deps/libserde-ab.rlib').read_bytes(),payload)
+   self.assertFalse((restored/'target/debug/deps/libdesktop_lib-ab.rlib').exists())
+   self.assertEqual((restored/'source/main.rs').read_bytes(),b'new source')
+   original_manifest=assets['cache-manifest.json']
+   for mutation in [lambda m:m.update(archiveBytes=8193),lambda m:m.update(parts=m['parts']*2)]:
+    bad=json.loads(original_manifest);mutation(bad);assets['cache-manifest.json']=json.dumps(bad).encode();attempt=base/('bad-'+str(len(bad['parts']))+'-'+str(bad['archiveBytes']));attempt.mkdir()
+    with mock.patch.object(cache.builder,'ensure_private'),mock.patch.object(cache.builder,'release_for',return_value=release),mock.patch.object(cache,'download_asset',side_effect=download) as fetch:
+     with self.assertRaises(cache.builder.SafeError):cache.restore(attempt,c)
+     self.assertEqual(fetch.call_count,1);self.assertFalse((attempt/'target').exists())
+ def test_restore_keeps_expanded_limit_when_windows_compressed_budget_is_larger(self):
+  with tempfile.TemporaryDirectory() as d:
+   root=pathlib.Path(d);write(root/'target/debug/deps/libserde-ab.rlib',b'x'*1024);archive=root/'deps.tar.gz';cache.pack(root,config(),archive)
+   with mock.patch.object(cache,'MAX_EXPANDED',512):
+    with self.assertRaises(cache.builder.SafeError):cache.extract(archive,root/'expanded',config())
  def test_download_never_forwards_pat_to_signed_asset_url(self):
   payload=b'public fixture bytes';asset={'id':7,'size':len(payload),'digest':'sha256:'+hashlib.sha256(payload).hexdigest()};calls=[]
   def open(req,**kw):
