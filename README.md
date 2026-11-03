@@ -1,5 +1,7 @@
 # Sabo Lab desktop build orchestrator
 
+[Tải Sabo Lab đã phát hành](https://github.com/MinhOmega/sabo-lab-build/releases/latest) · [Hướng dẫn sử dụng có ảnh](docs/client-guide.md). Người dùng app không cần Rust, Node hoặc GitHub token.
+
 Repo public này chỉ chứa workflow và helper điều phối. Source luôn ở **private** `MinhOmega/sabo-lab-next`. Có hai luồng: Windows test build lưu installer/log private; signed desktop release chủ động phát hành **chỉ binary có chữ ký và feed cập nhật** tại [releases công khai](https://github.com/MinhOmega/sabo-lab-build/releases). Không upload source hoặc detailed build log vào Actions artifact/cache/release công khai.
 
 Pipeline chạy trên runner chuẩn `windows-2022`: tải đúng commit private → kiểm tra assets → frontend build/tests → tests 7 crate và desktop → build NSIS release → upload EXE, SHA256, provenance và log vào release **private**. Log công khai chỉ có trạng thái stage; output của compiler/tests được chuyển vào `build-detail.txt` private. Đây là installer thử nghiệm; build thành công chưa xác nhận Nox/LDPlayer/gameplay, chưa ký Authenticode và chưa tạo artifact updater có chữ ký.
