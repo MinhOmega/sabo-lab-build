@@ -41,6 +41,11 @@ class BuilderTests(unittest.TestCase):
   for name in ['sabo-core','sabo-bootstrap','sabo-task-api','sabo-transport','sabo-navigation','sabo-routines','sabo-quests']:
    self.assertIn('crates/'+name+'/Cargo.toml',flat)
   self.assertIn('x86_64-pc-windows-msvc',flat);self.assertIn('nsis',flat);self.assertNotIn('TOKEN',flat)
+ def test_native_only_plan_cannot_build_an_installer(self):
+  commands=list(b.commands(pathlib.Path('/source'),True));self.assertEqual(len(commands),2)
+  flat='\n'.join(' '.join(args) for _,args in commands)
+  self.assertIn('crates/sabo-bootstrap/Cargo.toml',flat);self.assertIn('--nocapture',flat)
+  self.assertNotIn('tauri',flat);self.assertNotIn('npm',flat)
  def test_failed_build_cannot_publish_or_retain_a_success_marker(self):
   with tempfile.TemporaryDirectory() as d:
    root=pathlib.Path(d);out=root/'private-output';out.mkdir();tag='windows-ci-'+SHA[:12]

@@ -11,6 +11,10 @@ on:
         description: Publish successful prerelease in PRIVATE source repo (otherwise draft)
         type: boolean
         default: false
+      native_only:
+        description: Run only pinned native bridge checks; no installer or public release
+        type: boolean
+        default: false
   schedule:
     - cron: '17 * * * *'
 permissions:
@@ -59,8 +63,12 @@ jobs:
       - name: Test and build Windows NSIS (detailed output stays private)
         id: build
         if: steps.source.outputs.skip != 'true'
+        env:
+          NATIVE_ONLY: ${{ inputs.native_only }}
         run: |
-          python scripts/builder.py build --root $env:PRIVATE_BUILD_ROOT
+          $arguments = @('scripts/builder.py','build','--root',$env:PRIVATE_BUILD_ROOT)
+          if ($env:NATIVE_ONLY -eq 'true') { $arguments += '--native-only' }
+          python @arguments
           if ($LASTEXITCODE -ne 0) { throw 'Build failed. Detailed output is uploaded to the private draft release next.' }
       - name: Upload only to PRIVATE repository release
         if: always() && steps.source.outcome == 'success' && steps.source.outputs.skip != 'true'

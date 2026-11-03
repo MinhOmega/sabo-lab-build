@@ -118,9 +118,12 @@ def fetch(root, sha, scheduled):
  save_json(root/'request.json',{'sourceCommit':commit,'repository':REPOSITORY,'tag':tag})
  output_flag('skip','false'); print('Private source prepared. No source, cache or artifact is published here.')
 
-def commands(source):
+def commands(source,native_only=False):
  desktop=source/'apps/desktop'; npm='npm.cmd' if os.name=='nt' else 'npm'
  yield source,[sys.executable,'scripts/prepare-assets.py']
+ if native_only:
+  yield source,['cargo','test','--locked','--manifest-path','crates/sabo-bootstrap/Cargo.toml','--','--nocapture']
+  return
  yield desktop,[npm,'ci','--no-audit','--no-fund']
  yield desktop,[npm,'run','build']
  yield desktop,['node','--test']
@@ -129,23 +132,25 @@ def commands(source):
  yield source,['cargo','test','--locked','--manifest-path','apps/desktop/src-tauri/Cargo.toml','--lib']
  yield desktop,[npm,'run','tauri','build','--','--target','x86_64-pc-windows-msvc','--bundles','nsis']
 
-def build(root):
+def build(root,native_only=False):
  if os.name!='nt': raise SafeError('The installer job must run on Windows x64.')
  request=json.loads((root/'request.json').read_text());out=root/'private-output';out.mkdir()
  status={'status':'failed',**request,'runner':'windows-2022','target':'x86_64-pc-windows-msvc','startedAt':datetime.datetime.now(datetime.timezone.utc).isoformat()}
+ if native_only:status.update(tag='native-runtime-ci-'+request['sourceCommit'][:12],nativeCheckOnly=True)
  env={k:v for k,v in os.environ.items() if not any(s in k.upper() for s in ('TOKEN','SECRET','PASSWORD','SIGNING_PRIVATE'))}
  env.update(CARGO_TARGET_DIR=str(root/'target'),CARGO_INCREMENTAL='0',CARGO_BUILD_JOBS='1')
  # Prevent a developer variable from enabling mock gameplay in a test release.
  env.pop('SABO_FAKE_AGENT',None);env.pop('SABO_AGENT_SCRIPT',None)
  log=out/'build-detail.txt'; failed=None
  with log.open('wb') as details:
-  for index,(cwd,args) in enumerate(commands(root/'source'),1):
+  for index,(cwd,args) in enumerate(commands(root/'source',native_only),1):
    print('Private validation/build stage %d is running.' % index,flush=True)
    details.write(('\nSTAGE %d: %s\n'%(index,' '.join(args))).encode());details.flush()
-   try: result=subprocess.run(args,cwd=cwd,env=env,stdout=details,stderr=subprocess.STDOUT,timeout=5400)
+   try: result=subprocess.run(args,cwd=cwd,env=env,stdout=details,stderr=subprocess.STDOUT,timeout=600 if native_only else 5400)
    except (OSError,subprocess.TimeoutExpired): failed=index;break
    if result.returncode: failed=index;break
- if failed is None:
+ if failed is None and native_only:status.update(status='success',gameplayVerified=False)
+ elif failed is None:
   files=list((root/'target/x86_64-pc-windows-msvc/release/bundle/nsis').glob('*.exe'))
   if len(files)!=1: failed='installer-output'
   else:
@@ -160,7 +165,7 @@ def build(root):
  if status['status']=='success': save_json(out/'BUILD-SUCCEEDED.json',status)
  output_flag('success','true' if status['status']=='success' else 'false')
  if failed is not None: raise SafeError('Windows validation/build failed. Detailed output will be attached only to the private draft release.')
- print('Windows validation and NSIS build succeeded. Gameplay remains unverified.')
+ print('Windows native check succeeded; no installer built.' if native_only else 'Windows validation and NSIS build succeeded. Gameplay remains unverified.')
 
 def upload_asset(release_id,path):
  data=path.read_bytes()
@@ -177,6 +182,7 @@ def publish(root, publish_now):
  status=json.loads((out/'build-info.json').read_text());tag=status['tag'];release=release_for(tag)
  if release and not release.get('draft'): raise SafeError('Refusing to overwrite an already published release.')
  body='Windows x64 CI build from commit '+status['sourceCommit']+'.\n\nStatus: '+status['status']+'.\nInstaller is a test build; Windows emulator/gameplay is not verified. Updater signature and Authenticode are not configured by this pipeline. Detailed build output is private.\n'
+ if status.get('nativeCheckOnly'):body='Windows native runtime check only; no installer.\n\nStatus: '+status['status']+'. Gameplay remains unverified. Detailed output is private.\n'
  if release is None:
   release=api('/repos/'+REPOSITORY+'/releases',method='POST',data={'tag_name':tag,'target_commitish':status['sourceCommit'],'name':'Windows test build '+status['sourceCommit'][:12],'body':body,'draft':True,'prerelease':True})
  else: api('/repos/'+REPOSITORY+'/releases/'+str(release['id']),method='PATCH',data={'body':body})
@@ -199,11 +205,11 @@ def publish(root, publish_now):
 
 
 def main():
- p=argparse.ArgumentParser();p.add_argument('action',choices=['fetch','build','publish']);p.add_argument('--root',type=pathlib.Path,required=True);p.add_argument('--sha',default='');p.add_argument('--scheduled',action='store_true');p.add_argument('--publish',action='store_true');a=p.parse_args()
+ p=argparse.ArgumentParser();p.add_argument('action',choices=['fetch','build','publish']);p.add_argument('--root',type=pathlib.Path,required=True);p.add_argument('--sha',default='');p.add_argument('--scheduled',action='store_true');p.add_argument('--publish',action='store_true');p.add_argument('--native-only',action='store_true');a=p.parse_args()
  root=a.root.resolve();root.mkdir(parents=True,exist_ok=True)
  try:
   if a.action=='fetch': fetch(root,a.sha,a.scheduled)
-  elif a.action=='build': build(root)
+  elif a.action=='build': build(root,a.native_only)
   else: publish(root,a.publish)
  except SafeError as error: print(str(error),file=sys.stderr);return 1
  except Exception:
