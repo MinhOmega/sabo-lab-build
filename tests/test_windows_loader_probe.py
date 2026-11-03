@@ -26,6 +26,13 @@ class WindowsLoaderProbeTests(unittest.TestCase):
   for width in (4,8):
    with tempfile.TemporaryDirectory() as d:
     path=pathlib.Path(d)/'fixture.exe';path.write_bytes(image(width));self.assertEqual(loader.pe_imports(path),[('COMCTL32.dll',['TaskDialogIndirect',17])])
+ def test_literal_exports_are_checked_without_using_process_activation_context(self):
+  raw=bytearray(image());struct.pack_into('<II',raw,0x98+112,0x1200,40)
+  struct.pack_into('<IIIIII',raw,512+0x200+16,17,1,1,0x1240,0x1250,0x1260)
+  struct.pack_into('<I',raw,512+0x240,0x1300);struct.pack_into('<I',raw,512+0x250,0x1280);struct.pack_into('<H',raw,512+0x260,0)
+  raw[512+0x280:512+0x280+19]=b'TaskDialogIndirect\0'
+  with tempfile.TemporaryDirectory() as d:
+   path=pathlib.Path(d)/'fixture.dll';path.write_bytes(raw);self.assertEqual(loader.pe_exports(path),{17,'TaskDialogIndirect'})
  def test_malformed_unbounded_and_path_imports_fail_closed(self):
   for raw in (b'',b'MZ',image()[:100],image().replace(b'COMCTL32.dll',b'../evil!.dll')):
    with tempfile.TemporaryDirectory() as d:

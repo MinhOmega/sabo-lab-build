@@ -81,6 +81,42 @@ def pe_imports(path):
     raise ValueError('Too many import DLLs')
 
 
+def pe_exports(path):
+    """Read literal-file exports, unaffected by the Python process's SxS context."""
+    path=pathlib.Path(path)
+    if path.stat().st_size>MAX_PE_BYTES:raise ValueError('PE exceeds diagnostic bound')
+    data=path.read_bytes()
+    def read(fmt,at):
+        if at<0 or at+struct.calcsize(fmt)>len(data):raise ValueError('Truncated PE')
+        return struct.unpack_from(fmt,data,at)
+    if data[:2]!=b'MZ':raise ValueError('Not PE')
+    pe,=read('<I',0x3c)
+    if data[pe:pe+4]!=b'PE\0\0':raise ValueError('Bad PE signature')
+    count,=read('<H',pe+6);size,=read('<H',pe+20);optional=pe+24;magic,=read('<H',optional)
+    if count>128 or magic not in (0x10b,0x20b):raise ValueError('Unsupported PE')
+    sections=[read('<IIII',optional+size+40*i+8) for i in range(count)]
+    def offset(rva):
+        for virtual_size,base,raw_size,raw in sections:
+            if base<=rva<base+max(virtual_size,raw_size) and rva-base<raw_size:return raw+rva-base
+        raise ValueError('Unmapped export RVA')
+    directory=optional+(112 if magic==0x20b else 96);rva,_=read('<II',directory)
+    if not rva:return set()
+    table=offset(rva);base,functions,names,addresses,name_table,ordinals=read('<IIIIII',table+16)
+    if functions>MAX_IMPORTS or names>MAX_IMPORTS:raise ValueError('Too many exports')
+    exports=set()
+    for i in range(functions):
+        value,=read('<I',offset(addresses)+4*i)
+        if value:exports.add(base+i)
+    for i in range(names):
+        name_rva,=read('<I',offset(name_table)+4*i);start=offset(name_rva)
+        end=data.find(b'\0',start,min(start+512,len(data)))
+        if end<0:raise ValueError('Unbounded export name')
+        ordinal,=read('<H',offset(ordinals)+2*i)
+        if ordinal>=functions:raise ValueError('Bad export ordinal')
+        exports.add(data[start:end].decode('ascii',errors='strict'))
+    return exports
+
+
 def probe(path):
     if os.name != 'nt':
         return {'available': False, 'reason': 'Windows only'}
@@ -114,6 +150,13 @@ def probe(path):
     print(json.dumps({'probe': 'windows-loader-imports', 'binary': path.name, 'windows': sys.getwindowsversion().build}), flush=True)
     results = []
     for dll, symbols in pe_imports(path):
+        if dll.lower()=='comctl32.dll':
+            literal=pathlib.Path(os.environ.get('SystemRoot',r'C:\Windows'))/'System32'/dll
+            try:
+                exports=pe_exports(literal)
+                print(json.dumps({'literalSystemDll':str(literal),'imports':symbols,'missingFromLiteralFile':[symbol for symbol in symbols if symbol not in exports],'note':'Static file exports; probe process may have a different SxS activation context from test executable.'}),flush=True)
+            except (OSError,ValueError,struct.error):
+                print(json.dumps({'literalSystemDll':dll,'reason':'Static export check unavailable'}),flush=True)
         # Use Windows' loader/API-set resolution. No DLL search/PATH environment is dumped.
         local = path.parent/dll
         target = str(local) if local.is_file() else dll
