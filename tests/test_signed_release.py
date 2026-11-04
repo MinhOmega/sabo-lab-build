@@ -54,6 +54,15 @@ class SignedReleaseTests(unittest.TestCase):
    self.assertTrue(any('crates/sabo-bootstrap/Cargo.toml' in c for c in calls))
    self.assertFalse(any('tauri' in c for c in calls))
    self.assertEqual(json.loads((root/'private-output/build-info.json').read_text())['status'],'failed')
+ def test_changed_contract_gate_stops_before_dependencies_tests_or_signing(self):
+  platform='windows' if signed.os.name=='nt' else 'macos';calls=[]
+  with tempfile.TemporaryDirectory() as d:
+   root=pathlib.Path(d);desktop=root/'source/apps/desktop';desktop.mkdir(parents=True)
+   (root/'request.json').write_text(json.dumps({'sourceCommit':'a'*40,'repository':'MinhOmega/sabo-lab-next'}));(desktop/'package.json').write_text('{"version":"0.4.6"}')
+   def run(args,**kwargs):calls.append(args);return types.SimpleNamespace(returncode=1)
+   with mock.patch.object(signed.build_runtime,'execute',side_effect=run):
+    with self.assertRaises(signed.builder.SafeError):signed.run_build(root,platform)
+   self.assertEqual(len(calls),1);self.assertIn('scripts/check-test-contracts.py',calls[0]);self.assertFalse(any('tauri' in c for c in calls));self.assertEqual(json.loads((root/'private-output/build-info.json').read_text())['failedStage'],1)
  def test_even_a_successful_verification_bundle_cannot_be_uploaded_publicly(self):
   with tempfile.TemporaryDirectory() as d:
    root=pathlib.Path(d);out=root/'private-output';out.mkdir();(out/'build-info.json').write_text(json.dumps({'status':'success','version':'0.3.19','verificationOnly':True}))

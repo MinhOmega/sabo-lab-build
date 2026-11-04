@@ -4,7 +4,7 @@ import argparse, base64, datetime, hashlib, json, os, pathlib, re, shutil, subpr
 import builder
 import build_runtime
 PUBLIC = 'MinhOmega/sabo-lab-build'
-STAGE_NAMES = ['assets', 'npm-install', 'frontend-build', 'frontend-tests', 'python-tests', 'core-tests', 'quest-tests', 'routine-tests', 'native-bootstrap-tests', 'desktop-tests', 'license-tests', 'release-config', 'signed-package']
+STAGE_NAMES = ['test-contracts', 'assets', 'npm-install', 'frontend-build', 'frontend-tests', 'python-tests', 'core-tests', 'quest-tests', 'routine-tests', 'native-bootstrap-tests', 'desktop-tests', 'license-tests', 'release-config', 'signed-package']
 TARGETS = {'macos':('aarch64-apple-darwin','app','darwin-aarch64','macos/*.app.tar.gz','macos-arm64.app.tar.gz'),
            'windows':('x86_64-pc-windows-msvc','nsis','windows-x86_64','nsis/*.exe','windows-x64-setup.exe')}
 
@@ -44,7 +44,8 @@ def run_build(root,platform,verification=False):
  if verification:status.update(tag='verify-'+platform+'-ci-'+request['sourceCommit'][:12]+'-'+os.environ.get('GITHUB_RUN_ID','local'),verificationOnly=True)
  if (root/'cache-restore.json').is_file():status['cacheRestore']=json.loads((root/'cache-restore.json').read_text())
  npm='npm.cmd' if os.name=='nt' else 'npm';desktop=source/'apps/desktop';overlay=root/'updater-config.json'
- steps=[(source,[sys.executable,'scripts/prepare-assets.py']),
+ steps=[(source,[sys.executable,'scripts/check-test-contracts.py']),
+        (source,[sys.executable,'scripts/prepare-assets.py']),
         (desktop,[npm,'ci','--no-audit','--no-fund','--ignore-scripts']),
         (desktop,[npm,'run','build']),(desktop,['node','--test']),
         (source,[sys.executable,'-B','-m','unittest','discover','-s','scripts/tests','-p','test_*.py']),
