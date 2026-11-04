@@ -1,6 +1,6 @@
 # Dùng Sabo Lab
 
-Hướng dẫn gồm các thay đổi của **0.3.29**. Nếu đang dùng bản cũ hơn, cập nhật sau khi bản này xuất hiện trên [kênh phát hành](https://github.com/MinhOmega/sabo-lab-build/releases/latest).
+Hướng dẫn áp dụng cho **0.3.29 trở lên**. [Tải bản phát hành mới nhất](https://github.com/MinhOmega/sabo-lab-build/releases/latest), hoặc dùng Cập nhật trong app.
 
 Ảnh dưới dùng tài khoản minh họa và IPC mô phỏng, không phải kết quả chạy game thật.
 
