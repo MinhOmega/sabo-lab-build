@@ -1,6 +1,6 @@
 # Dùng Sabo Lab
 
-Hướng dẫn này áp dụng cho **0.3.27 trở lên**, bao gồm nhập tài khoản chưa có danh sách nhân vật.
+Hướng dẫn gồm các thay đổi của **0.3.29**. Nếu đang dùng bản cũ hơn, cập nhật sau khi bản này xuất hiện trên [kênh phát hành](https://github.com/MinhOmega/sabo-lab-build/releases/latest).
 
 Ảnh dưới dùng tài khoản minh họa và IPC mô phỏng, không phải kết quả chạy game thật.
 
@@ -52,10 +52,12 @@ Các tài khoản trên cùng giả lập chạy lần lượt; mỗi tài kho�
 
 ## Dọn đồ và hỗ trợ
 
-**Dọn hành trang** trong **2. Nhiệm vụ và ưu tiên** là tiện ích riêng, chạy trên nhân vật đang mở. Dừng hàng đợi trước, chọn giả lập và cấu hình rồi mới bấm chạy. Mặc định không bán. Xem hướng dẫn ngắn ngay trong phần cấu hình: chỉ chọn bán thứ bạn đã cấu hình, danh sách giữ luôn được ưu tiên.
+**Dọn hành trang** nằm trong **2. Nhiệm vụ và ưu tiên**. Mở cấu hình, chọn bộ lọc bán/sửa và danh sách giữ rồi **Lưu cấu hình** một lần. Tích Dọn hành trang và tài khoản/ô muốn chạy, đặt ưu tiên rồi bấm **Chạy tài khoản đã chọn**. Tool tự đăng nhập từng ô và chạy một lượt; có thể chọn riêng việc này hoặc xếp sau Hoa Đăng/Boss. Nếu có bán đồ, hộp xác nhận hiện trước khi hàng đợi bắt đầu; hủy thì chưa chạy tài khoản nào. Xem [cách lọc và giữ đồ](inventory-guide.md).
+
+![Cấu hình Dọn hành trang dùng chung](images/inventory.png)
 
 **Cập nhật** có một nút chính: kiểm tra → tải → cài đặt. Có thể tải trong lúc auto; cần dừng tác vụ trước khi cài. Nhắc lại và tự tải nằm trong phần tùy chọn thu gọn.
 
 Khi có lỗi, mở **Hỗ trợ & log** để xem trạng thái gửi log hoặc xuất ZIP. Cài mới mặc định gửi log mới đã che thông tin nhạy cảm; lựa chọn tắt đã lưu được giữ nguyên. Ghi thêm thời điểm, thao tác và kết quả mong đợi khi báo lỗi. Không gửi CSV có mật khẩu.
 
-App đọc trước giờ sự kiện khi có thời gian chờ và lưu cấp theo từng ô. Ảnh có thể mới hơn phiên bản bạn đang cài. Source và log chi tiết vẫn ở repository private.
+Nhật ký mặc định hiện cảnh báo và lỗi. Chọn **Tất cả mức** khi cần xem tiến trình. Từ 0.3.29, câu hỏi mới được trả lời trực tiếp từ game, không lưu nội dung vào kho cục bộ; cửa sổ câu hỏi vẫn xem được dữ liệu đã có.
