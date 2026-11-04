@@ -7,7 +7,7 @@ import build_runtime
 REPOSITORY = 'MinhOmega/sabo-lab-next'
 API = 'https://api.github.com'
 MAX_ARCHIVE = 512 * 1024**2
-ALLOWED_PREFIXES = ('apps/', 'crates/', 'data/', 'scripts/', 'docs/')
+ALLOWED_PREFIXES = ('apps/', 'crates/', 'data/', 'scripts/', 'docs/', 'services/license/tests/')
 RECOVERED = {
  'reference/csharp-recovered/AI.Auto.Resources.FridaNative.dll',
  'reference/csharp-recovered/AI.Auto.Resources.frida-server-16.1.4-android-x86',

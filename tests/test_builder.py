@@ -36,6 +36,15 @@ class BuilderTests(unittest.TestCase):
    with tarfile.open(archive,'w:gz') as t:
     item=tarfile.TarInfo('repo/apps/link');item.type=tarfile.SYMTYPE;item.linkname='/outside';t.addfile(item)
    with self.assertRaises(b.SafeError):b.unpack(archive,pathlib.Path(d)/'other')
+ def test_reviewed_license_tests_are_in_private_snapshot_without_worker_secrets(self):
+  with tempfile.TemporaryDirectory() as d:
+   archive=pathlib.Path(d)/'src.tar.gz'
+   with tarfile.open(archive,'w:gz') as t:
+    for name in ['repo/services/license/tests/license.test.mjs','repo/services/license/tests/helpers/fixture.mjs','repo/services/license/.dev.vars','repo/services/license/production-secrets.json','repo/services/license/src/core.js']:
+     content=b'fixture';item=tarfile.TarInfo(name);item.size=len(content);t.addfile(item,io.BytesIO(content))
+   root=pathlib.Path(d)/'source';b.unpack(archive,root)
+   self.assertTrue((root/'services/license/tests/license.test.mjs').is_file());self.assertTrue((root/'services/license/tests/helpers/fixture.mjs').is_file())
+   self.assertFalse((root/'services/license/.dev.vars').exists());self.assertFalse((root/'services/license/production-secrets.json').exists());self.assertFalse((root/'services/license/src/core.js').exists())
  def test_command_plan_contains_all_checks_and_nsis_without_release_credentials(self):
   commands=list(b.commands(pathlib.Path('/source')));flat='\n'.join(' '.join(args) for _,args in commands)
   self.assertIn('scripts/prepare-assets.py',flat);self.assertIn('npm',flat);self.assertIn('--locked',flat)
