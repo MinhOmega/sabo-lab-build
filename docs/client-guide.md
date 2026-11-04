@@ -1,6 +1,6 @@
 # Dùng Sabo Lab
 
-Hướng dẫn UI **0.4.4**. [Tải bản mới nhất](https://github.com/MinhOmega/sabo-lab-build/releases/latest) hoặc dùng **Cập nhật** trong app.
+Hướng dẫn UI **0.4.5**. [Tải bản mới nhất](https://github.com/MinhOmega/sabo-lab-build/releases/latest) hoặc dùng **Cập nhật** trong app.
 
 Ảnh dưới dùng tài khoản minh họa và IPC mô phỏng, không phải kết quả chạy game thật.
 
@@ -39,6 +39,7 @@ Hai dòng của account01 chọn ô 1 và 3 trong cùng tài khoản, không đ�
 
 1. Tích tài khoản muốn chạy; chọn đúng giả lập ở từng hàng.
 2. Tích nhiệm vụ. Số ưu tiên nhỏ hơn chạy trước. Hoa Đăng chạy ở các mốc đã tích trong **Cài đặt → Nâng cao · Chọn mốc Hoa Đăng** (mặc định 11:00,18:00,21:30). Mỗi nhân vật chỉ làm một lần trong ngày; đã xong thì bỏ qua các mốc còn lại, sang 00:00 giờ máy chủ được chạy lại. Trạng thái chờ giờ không có nghĩa app bị treo.
+   Trong Cài đặt Hoa Đăng, chọn chuẩn bị trước **15 phút** (mặc định) hoặc **10 phút**. Tool đưa từng nhân vật vào map sự kiện, không trả lời; tới giờ chuyển sang Hoa Đăng. Đã ở Hoa Sơn thì đứng yên. Nơi khác thử **Hoạt động → Hoa Đăng → Tham gia**; chưa vào được thì nhường lượt, không tự đi bộ dự phòng.
 3. Bấm **Chạy tài khoản đã chọn**. Tài khoản chưa có danh sách nhân vật sẽ được đọc khi đến lượt; không cần đọc thủ công trước. Trạng thái phía trên cho biết máy, tài khoản, nhân vật và việc hiện tại.
 4. Tích **Xem trực tiếp** để mở video. Đóng video không dừng auto.
 
@@ -63,6 +64,10 @@ Các tài khoản trên cùng giả lập chạy lần lượt; mỗi tài kho�
 ![Cấu hình Dọn hành trang dùng chung](images/inventory.png)
 
 **Cập nhật** có một nút chính: kiểm tra → tải → cài đặt. Có thể tải trong lúc auto; cần dừng tác vụ trước khi cài. Nhắc lại và tự tải nằm trong phần tùy chọn thu gọn.
+
+Sau khi cài bản mới, kiểm tra tài khoản/nhiệm vụ rồi bấm **Chạy** để bật lịch. Ví dụ mốc 21:30 với chuẩn bị 15 phút cần bật trước 21:15.
+
+Muốn dùng bản cũ, mở **Cập nhật → Quay về phiên bản cũ → Xem các phiên bản cũ**. Chọn bản, bấm Tải rồi Cài đặt và mở lại sau khi dừng tác vụ. Chỉ hiện tối đa 10 bản cũ có chữ ký; cấu hình và DB được sao lưu trước khi cài.
 
 Khi có lỗi, bấm **Nhật ký** trên top bar. Trang riêng có bộ lọc mức/hoạt động, **Tạm dừng cuộn** để đọc dòng cũ và **Theo dõi mới nhất** để quay lại. Mở **Hỗ trợ & chẩn đoán** trong trang này để xem trạng thái gửi log Cloudflare và thời điểm gửi gần nhất. Tính năng xuất ZIP đã ẩn khỏi UI. Cài mới mặc định gửi log mới đã che thông tin nhạy cảm; lựa chọn tắt đã lưu được giữ nguyên. Ghi thêm thời điểm, thao tác và kết quả mong đợi khi báo lỗi. Không gửi CSV có mật khẩu.
 

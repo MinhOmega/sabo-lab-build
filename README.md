@@ -1,6 +1,6 @@
 # Sabo Lab desktop build orchestrator
 
-Bản mới nhất: [Sabo Lab 0.4.4](https://github.com/MinhOmega/sabo-lab-build/releases/tag/app-v0.4.4). [CI Windows/Mac đã qua](https://github.com/MinhOmega/sabo-lab-build/actions/runs/41828017306); file công khai đã kiểm chứng chữ ký updater và hash. Sửa giữ phiên Hoa Đăng, Dừng theo giả lập, retry sau lượt mới và log lý do đóng game. Native Windows 292/Mac 294, frontend 565, quest 67, license 11; không có compiler warning. Gameplay trọn lượt trên máy khách cần tiếp tục đối chiếu log.
+Bản mới nhất: [Sabo Lab 0.4.5](https://github.com/MinhOmega/sabo-lab-build/releases/tag/app-v0.4.5). [CI Windows/Mac đã qua](https://github.com/MinhOmega/sabo-lab-build/actions/runs/41841368080); file công khai đã kiểm chứng chữ ký updater và hash. Tự chuẩn bị Hoa Đăng trước 10/15 phút, giữ vị trí khi đã ở Hoa Sơn và dùng Tham gia ở map khác; mặc định không đi bộ dự phòng. Có thể chọn tối đa 10 bản cũ đã ký để cài lại sau khi sao lưu dữ liệu. Native Windows 302/Mac 304, frontend 571, quest 73, commercial-license 11; không có compiler warning. Gameplay trọn lượt trên máy khách cần tiếp tục đối chiếu log. Sau khi cài, bấm Chạy lại để bật lịch.
 
 [Tải Sabo Lab đã phát hành](https://github.com/MinhOmega/sabo-lab-build/releases/latest) · [Hướng dẫn sử dụng có ảnh](docs/client-guide.md). Người dùng app không cần Rust, Node hoặc GitHub token.
 
