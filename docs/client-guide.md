@@ -1,6 +1,6 @@
 # Dùng Sabo Lab
 
-Các tùy chọn lịch và giao diện mới áp dụng từ **0.3.30**. [Tải bản mới nhất](https://github.com/MinhOmega/sabo-lab-build/releases/latest) hoặc cập nhật trong app.
+Các tùy chọn lịch áp dụng từ **0.3.30**; phần metrics và bỏ kho câu hỏi áp dụng từ **0.4.0**. [Tải bản mới nhất](https://github.com/MinhOmega/sabo-lab-build/releases/latest) hoặc cập nhật trong app.
 
 Ảnh dưới dùng tài khoản minh họa và IPC mô phỏng, không phải kết quả chạy game thật.
 
@@ -64,4 +64,8 @@ Các tài khoản trên cùng giả lập chạy lần lượt; mỗi tài kho�
 
 Khi có lỗi, mở **Hỗ trợ & log** để xem trạng thái gửi log Cloudflare và thời điểm gửi gần nhất. Tính năng xuất ZIP đã ẩn khỏi UI. Cài mới mặc định gửi log mới đã che thông tin nhạy cảm; lựa chọn tắt đã lưu được giữ nguyên. Ghi thêm thời điểm, thao tác và kết quả mong đợi khi báo lỗi. Không gửi CSV có mật khẩu.
 
-Nhật ký mặc định hiện cảnh báo và lỗi. Chọn **Tất cả mức** khi cần xem tiến trình. Từ 0.3.29, câu hỏi mới được trả lời trực tiếp từ game, không lưu nội dung vào kho cục bộ; cửa sổ câu hỏi vẫn xem được dữ liệu đã có.
+Nhật ký mặc định hiện cảnh báo và lỗi. Chọn **Tất cả mức** khi cần xem tiến trình. Từ 0.3.29, câu hỏi mới được trả lời trực tiếp từ game, không lưu nội dung vào kho cục bộ; giao diện kho câu hỏi đã được bỏ từ 0.4.0, dữ liệu cũ giữ riêng để phục hồi.
+
+Từ 0.4.0, **Hỗ trợ & log** gửi thêm CPU/RAM/I/O, dung lượng DB/ổ đĩa, GPU khi có counter và thời gian tác vụ; nhà phát hành lọc trong admin → **Hiệu năng & phiên thoát bất thường**. Metrics giữ tối đa 14 ngày hoặc 20.000 mẫu mỗi license. Không đo được GPU/NPU thì ghi chưa hỗ trợ, không coi là 0%. Mật khẩu, dòng lệnh và tên ứng dụng cá nhân không được gửi. Lựa chọn tắt đồng bộ đã lưu vẫn được giữ.
+
+![Hỗ trợ và phạm vi metrics](images/support-040.png)
