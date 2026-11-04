@@ -76,3 +76,17 @@ class SignedReleaseTests(unittest.TestCase):
    self.assertNotIn('uses: actions/cache@',source)
    if 'actions/setup-node@' in source:self.assertIn('package-manager-cache: false',source)
 if __name__=='__main__':unittest.main()
+
+class ReleaseHistoryTests(unittest.TestCase):
+ def release(self,version,draft=False,complete=True):
+  names=['latest.json']
+  if complete:
+   for _,_,_,_,suffix in signed.TARGETS.values():names+=['SaboLab-'+version+'-'+suffix,'SaboLab-'+version+'-'+suffix+'.sig']
+  return {'tag_name':'app-v'+version,'draft':draft,'prerelease':False,'published_at':'2026-11-04T00:00:00Z','assets':[{'name':name} for name in names]}
+ def test_history_is_bounded_numeric_and_contains_current_draft_plus_ten_signed_releases(self):
+  current=self.release('0.4.5',draft=True);rows=[self.release('0.3.'+str(i)) for i in range(9,25)];history=signed.release_history(current,rows)
+  self.assertEqual(history['schema'],1);self.assertEqual(len(history['releases']),11);self.assertEqual(history['releases'][0]['version'],'0.4.5');self.assertEqual(history['releases'][1]['version'],'0.3.24');self.assertTrue(all(row['manifestUrl'].startswith('https://github.com/MinhOmega/sabo-lab-build/releases/download/app-v') for row in history['releases']))
+ def test_history_excludes_other_drafts_unsigned_incomplete_and_unstable_tags(self):
+  current=self.release('0.4.5',draft=True);bad=self.release('0.4.4');bad['prerelease']=True
+  rows=[self.release('0.4.3',draft=True),self.release('0.4.2',complete=False),{**self.release('0.4.1'),'tag_name':'app-v0.4.1-beta'},bad,self.release('0.4.0')]
+  self.assertEqual([r['version'] for r in signed.release_history(current,rows)['releases']],['0.4.5','0.4.0'])

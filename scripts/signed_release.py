@@ -142,6 +142,20 @@ def upload_bundle(root,tag):
   upload(release,out/name)
  print('Signed binaries uploaded to draft; no source or build log uploaded publicly.')
 
+def release_history(current,rows):
+ # Keep current plus ten prior signed, published stable versions. Clients
+ # verify each selected artifact against the pinned updater key and version.
+ versions={}
+ for row in [current]+list(rows):
+  tag=row.get('tag_name','');match=re.fullmatch(r'app-v(\d+)\.(\d+)\.(\d+)',tag)
+  if not match or row.get('prerelease') or row.get('draft') and row is not current:continue
+  version=tag[5:];assets={a['name'] for a in row.get('assets',[])}
+  expected=['SaboLab-'+version+'-'+suffix for _,_,_,_,suffix in TARGETS.values()]
+  if row is not current and ('latest.json' not in assets or any(name not in assets or name+'.sig' not in assets for name in expected)):continue
+  versions[version]={'version':version,'publishedAt':row.get('published_at') or '', 'manifestUrl':'https://github.com/'+PUBLIC+'/releases/download/'+tag+'/latest.json'}
+ ordered=sorted(versions,key=lambda v:tuple(map(int,v.split('.'))),reverse=True)
+ return {'schema':1,'releases':[versions[v] for v in ordered[:11]]}
+
 def finalize(tag):
  release=find_release(tag)
  if not release or not release['draft']:raise builder.SafeError('Expected draft release.')
@@ -162,6 +176,11 @@ def finalize(tag):
   if not re.search(r'(?m)^trusted comment: .*\bversion:'+re.escape(version)+r'(?:\s|$)',decoded):raise builder.SafeError('Signature version does not match release.')
   platforms[platform]={'url':'https://github.com/'+PUBLIC+'/releases/download/'+tag+'/'+name,'signature':sig}
  manifest={'version':version,'notes':'Sabo Lab '+version+' — license activation and signed updates.','pub_date':datetime.datetime.now(datetime.timezone.utc).isoformat().replace('+00:00','Z'),'platforms':platforms}
+ # Build the anonymous bounded history before publishing, with no client PAT
+ # or runtime GitHub API quota requirement.
+ rows=public_api('/repos/'+PUBLIC+'/releases?per_page=100&page=1')
+ history=release_history(release,rows)
+ history_path=pathlib.Path('history.json');builder.save_json(history_path,history);upload(release,history_path)
  path=pathlib.Path('latest.json');builder.save_json(path,manifest);upload(release,path)
  public_api('/repos/'+PUBLIC+'/releases/'+str(release['id']),method='PATCH',data={'draft':False,'prerelease':False,'make_latest':'true'})
  print('Published signed macOS/Windows release and anonymous updater feed.')
