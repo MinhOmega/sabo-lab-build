@@ -78,6 +78,8 @@ Source/private compiler output **không** được đưa vào Actions cache củ
 
 Mỗi stage ghi duration, return code, cache hit/miss và build policy vào `build-info.json` private. Log tổng hợp chỉ do process Python giữ; compiler nhận file tạm riêng. Trên Windows, mỗi stage chạy trong Job Object do helper sở hữu; wrapper chờ stdin đến khi được gán job, rồi mới chạy Cargo. Đóng job khi stage xong/timeout chỉ dừng các process con của stage đó, kể cả compiler server còn giữ working directory; không kill process SDK toàn máy. Có bài test Windows tạo process con giữ cwd rồi xác nhận dọn được thư mục.
 
+Bước upload diagnostics private thử lại tối đa bốn lần với HTTP 429/500/502/503/504 hoặc timeout mạng, chờ 2/5/15 giây. Mỗi lần đọc lại draft trước ghi để phục hồi upload dở; không retry lỗi quyền/private-policy, không in response/URL/credential và không ghi đè binary công khai. Hết retry thì vẫn chặn phát hành. Thay đổi áp dụng cho run mới từ commit helper có bản sửa; rerun của workflow cũ vẫn dùng SHA helper cũ.
+
 Workflow **Verify signed delivery without publication** nhận SHA source đầy đủ, chạy đúng kiểm tra và đóng gói/ký cả hai nền tảng, rồi chỉ gửi diagnostics/cache vào repo private. Nó không có quyền ghi release public, không cập nhật feed; helper cũng từ chối upload public một bundle verification. Chạy hai lần cùng source để đo build sạch và cache hit. Baseline trước tối ưu của [run 41587411761](https://github.com/MinhOmega/sabo-lab-build/actions/runs/41587411761): Windows **30m35**, Mac **14m11**. Kết quả mới phải đo trên CI, không ước lượng thành số đã đạt.
 
 Kết quả kiểm chứng sau tối ưu (verification có ký, không phát hành):

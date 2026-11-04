@@ -3,6 +3,24 @@ from unittest import mock
 ROOT=pathlib.Path(__file__).resolve().parents[1];sys.path.insert(0,str(ROOT/'scripts'))
 import signed_release as signed
 class SignedReleaseTests(unittest.TestCase):
+ def test_private_diagnostics_retries_transient_failure_without_rebuilding_or_leaking_error(self):
+  error=signed.builder.SafeError('GitHub API request failed (HTTP 500); fixture-sensitive-detail')
+  with mock.patch.object(signed,'_diagnostics_once',side_effect=[error,None]) as operation,mock.patch.object(signed.time,'sleep') as sleep,mock.patch('builtins.print') as output:
+   signed.diagnostics(pathlib.Path('fixture'))
+   self.assertEqual(operation.call_count,2);sleep.assert_called_once_with(2)
+   self.assertNotIn('fixture-sensitive-detail',str(output.call_args_list))
+ def test_private_diagnostics_never_retries_auth_or_policy_failures(self):
+  for message in ['GitHub API request failed (HTTP 401).','GitHub API request failed (HTTP 403).','Source repository must remain private.']:
+   with mock.patch.object(signed,'_diagnostics_once',side_effect=signed.builder.SafeError(message)) as operation,mock.patch.object(signed.time,'sleep') as sleep:
+    with self.assertRaises(signed.builder.SafeError):signed.diagnostics(pathlib.Path('fixture'))
+    self.assertEqual(operation.call_count,1);sleep.assert_not_called()
+ def test_private_diagnostics_transient_retries_are_bounded_and_fail_closed(self):
+  with mock.patch.object(signed,'_diagnostics_once',side_effect=signed.builder.SafeError('HTTP 503 fixture-sensitive-detail')) as operation,mock.patch.object(signed.time,'sleep') as sleep:
+   with self.assertRaisesRegex(signed.builder.SafeError,'bounded retries') as error:signed.diagnostics(pathlib.Path('fixture'))
+   self.assertEqual(operation.call_count,4);self.assertEqual([c.args[0] for c in sleep.call_args_list],[2,5,15]);self.assertNotIn('fixture-sensitive-detail',str(error.exception))
+ def test_private_diagnostics_network_timeout_is_retried(self):
+  with mock.patch.object(signed,'_diagnostics_once',side_effect=[TimeoutError('fixture-sensitive-detail'),None]) as operation,mock.patch.object(signed.time,'sleep'):
+   signed.diagnostics(pathlib.Path('fixture'));self.assertEqual(operation.call_count,2)
  def test_public_token_cannot_be_sent_to_private_or_external_destination(self):
   for path in ['/repos/MinhOmega/sabo-lab-next/releases','https://attacker.invalid/','/repos/other/repo/releases']:
    with self.assertRaises(signed.builder.SafeError):signed.public_api(path)

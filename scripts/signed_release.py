@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Signed binary releases; private source and diagnostics stay in private repo."""
-import argparse, base64, datetime, hashlib, json, os, pathlib, re, shutil, subprocess, sys, urllib.error, urllib.parse, urllib.request
+import argparse, base64, datetime, hashlib, json, os, pathlib, re, shutil, subprocess, sys, time, urllib.error, urllib.parse, urllib.request
 import builder
 import build_runtime
 PUBLIC = 'MinhOmega/sabo-lab-build'
@@ -95,7 +95,7 @@ def run_build(root,platform,verification=False):
  if failed is not None:raise builder.SafeError('Signed build failed; see PRIVATE diagnostic release.')
  print('Signed platform bundle built; source and diagnostic log remain private.')
 
-def diagnostics(root):
+def _diagnostics_once(root):
  out=root/'private-output'
  if not (out/'build-info.json').is_file():return
  status=json.loads((out/'build-info.json').read_text());builder.ensure_private();release=builder.release_for(status['tag'])
@@ -106,6 +106,22 @@ def diagnostics(root):
    if old['name']==path.name:builder.api('/repos/'+builder.REPOSITORY+'/releases/assets/'+str(old['id']),method='DELETE')
   builder.upload_asset(release['id'],path)
  print('Diagnostics uploaded to PRIVATE source repository.')
+
+def diagnostics(root):
+ # Re-read the private draft on every attempt: a failed HTTP response may have
+ # followed a successful create/upload. Existing diagnostic assets are replaced
+ # by _diagnostics_once; signed public artifacts are never overwritten here.
+ for attempt,delay in enumerate((2,5,15,0),1):
+  try:
+   return _diagnostics_once(root)
+  except builder.SafeError as error:
+   transient=bool(re.search(r'\bHTTP (429|500|502|503|504)\b',str(error)))
+   if not transient:raise
+  except (urllib.error.URLError,TimeoutError):
+   pass
+  if not delay:raise builder.SafeError('Private diagnostic upload unavailable after bounded retries; signed release remains unpublished.') from None
+  print('Private diagnostic service temporarily unavailable; retry %d/4 in %ss.'%(attempt+1,delay),flush=True)
+  time.sleep(delay)
 
 def prepare(tag):
  if not re.fullmatch(r'app-v\d+\.\d+\.\d+',tag):raise builder.SafeError('Invalid release tag.')
