@@ -1,6 +1,6 @@
 # Dùng Sabo Lab
 
-Hướng dẫn áp dụng cho **0.3.29 trở lên**. [Tải bản phát hành mới nhất](https://github.com/MinhOmega/sabo-lab-build/releases/latest), hoặc dùng Cập nhật trong app.
+Các tùy chọn lịch và giao diện mới áp dụng từ **0.3.30**. [Tải bản mới nhất](https://github.com/MinhOmega/sabo-lab-build/releases/latest) khi được phát hành.
 
 Ảnh dưới dùng tài khoản minh họa và IPC mô phỏng, không phải kết quả chạy game thật.
 
@@ -36,9 +36,13 @@ Chọn **Tất cả tài khoản** để sửa toàn bộ, hoặc chọn một g
 ![Bốn nhiệm vụ và độ ưu tiên](images/tasks.png)
 
 1. Tích tài khoản muốn chạy; chọn đúng giả lập ở từng hàng.
-2. Tích nhiệm vụ. Số ưu tiên nhỏ hơn chạy trước. Hoa Đăng chỉ chạy trong giờ sự kiện; trạng thái chờ giờ không có nghĩa app bị treo.
+2. Tích nhiệm vụ. Số ưu tiên nhỏ hơn chạy trước. Hoa Đăng chạy ở các mốc đã tích trong **Cài đặt → Nâng cao · Chọn mốc Hoa Đăng** (mặc định 11:00,18:00,21:30). Mỗi nhân vật chỉ làm một lần trong ngày; đã xong thì bỏ qua các mốc còn lại, sang 00:00 giờ máy chủ được chạy lại. Trạng thái chờ giờ không có nghĩa app bị treo.
 3. Bấm **Chạy tài khoản đã chọn**. Tài khoản chưa có danh sách nhân vật sẽ được đọc khi đến lượt; không cần đọc thủ công trước. Trạng thái phía trên cho biết máy, tài khoản, nhân vật và việc hiện tại.
 4. Tích **Xem trực tiếp** để mở video. Đóng video không dừng auto.
+
+![Chọn mốc Hoa Đăng trong Cài đặt](images/hoa-times.png)
+
+![Trạng thái từng MuMu gọn một dòng](images/mumu-status.png)
 
 Các tài khoản trên cùng giả lập chạy lần lượt; mỗi tài khoản đổi qua các ô đã chọn. Nhiều giả lập có thể chạy song song trong giới hạn tài nguyên máy. Trên Mac, bắt đầu với một giả lập.
 
@@ -52,12 +56,12 @@ Các tài khoản trên cùng giả lập chạy lần lượt; mỗi tài kho�
 
 ## Dọn đồ và hỗ trợ
 
-**Dọn hành trang** nằm trong **2. Nhiệm vụ và ưu tiên**. Mở cấu hình, chọn bộ lọc bán/sửa và danh sách giữ rồi **Lưu cấu hình** một lần. Tích Dọn hành trang và tài khoản/ô muốn chạy, đặt ưu tiên rồi bấm **Chạy tài khoản đã chọn**. Tool tự đăng nhập từng ô và chạy một lượt; có thể chọn riêng việc này hoặc xếp sau Hoa Đăng/Boss. Nếu có bán đồ, hộp xác nhận hiện trước khi hàng đợi bắt đầu; hủy thì chưa chạy tài khoản nào. Xem [cách lọc và giữ đồ](inventory-guide.md).
+**Dọn hành trang** nằm trong **2. Nhiệm vụ và ưu tiên**. Bấm **Cài đặt** của Dọn hành trang, chọn bộ lọc bán/sửa và danh sách giữ rồi **Lưu cấu hình chung** một lần. Tích Dọn hành trang và tài khoản/ô muốn chạy, đặt ưu tiên rồi bấm **Chạy tài khoản đã chọn**. Tool tự đăng nhập từng ô và chạy một lượt; có thể chọn riêng việc này hoặc xếp sau Hoa Đăng/Boss. Nếu có bán đồ, hộp xác nhận hiện trước khi hàng đợi bắt đầu; hủy thì chưa chạy tài khoản nào. Xem [cách lọc và giữ đồ](inventory-guide.md).
 
 ![Cấu hình Dọn hành trang dùng chung](images/inventory.png)
 
 **Cập nhật** có một nút chính: kiểm tra → tải → cài đặt. Có thể tải trong lúc auto; cần dừng tác vụ trước khi cài. Nhắc lại và tự tải nằm trong phần tùy chọn thu gọn.
 
-Khi có lỗi, mở **Hỗ trợ & log** để xem trạng thái gửi log hoặc xuất ZIP. Cài mới mặc định gửi log mới đã che thông tin nhạy cảm; lựa chọn tắt đã lưu được giữ nguyên. Ghi thêm thời điểm, thao tác và kết quả mong đợi khi báo lỗi. Không gửi CSV có mật khẩu.
+Khi có lỗi, mở **Hỗ trợ & log** để xem trạng thái gửi log Cloudflare và thời điểm gửi gần nhất. Tính năng xuất ZIP đã ẩn khỏi UI. Cài mới mặc định gửi log mới đã che thông tin nhạy cảm; lựa chọn tắt đã lưu được giữ nguyên. Ghi thêm thời điểm, thao tác và kết quả mong đợi khi báo lỗi. Không gửi CSV có mật khẩu.
 
 Nhật ký mặc định hiện cảnh báo và lỗi. Chọn **Tất cả mức** khi cần xem tiến trình. Từ 0.3.29, câu hỏi mới được trả lời trực tiếp từ game, không lưu nội dung vào kho cục bộ; cửa sổ câu hỏi vẫn xem được dữ liệu đã có.

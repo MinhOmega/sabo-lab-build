@@ -2,7 +2,7 @@
 
 Dọn hành trang nằm trong **2. Nhiệm vụ và ưu tiên**. Cấu hình chung một lần, chọn tài khoản và vị trí ở mục 1 rồi bấm **Chạy tài khoản đã chọn**. App đăng nhập và dọn lần lượt các ô đã chọn, giống các nhiệm vụ khác. Không cần tự đăng nhập từng nhân vật trước.
 
-1. Mở cấu hình **Dọn hành trang** và chọn việc cần làm. Mặc định giữ toàn bộ đồ, không sửa trang bị và không bật nhiệm vụ.
+1. Bấm **Cài đặt** của **Dọn hành trang** và chọn việc cần làm. Mặc định giữ toàn bộ đồ, không sửa trang bị và không bật nhiệm vụ.
 2. Nếu bán trang bị, chọn nhóm: giữ trang sức, chỉ bán trang sức, hoặc tất cả loại trang bị. Hai mức độ hiếm được hỗ trợ là mức thấp nhất (0) và hai mức thấp nhất (0–1).
 3. Nhập **tên cần giữ**, mỗi dòng một tên. Danh sách giữ được ưu tiên. Vật phẩm ngoài trang bị chỉ bán khi nhập đúng tên; sẽ bán cả số lượng trong túi.
 4. Mặc định tự chạy bộ đến NPC tạp hóa. Có thể tắt nếu shop đã được mở sẵn. Không dùng phù, xa phu hoặc dịch chuyển trả phí. Sửa trang bị có thể tốn tiền trong game.
