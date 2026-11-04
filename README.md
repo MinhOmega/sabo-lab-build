@@ -1,5 +1,7 @@
 # Sabo Lab desktop build orchestrator
 
+Bản mới nhất: [Sabo Lab 0.4.4](https://github.com/MinhOmega/sabo-lab-build/releases/tag/app-v0.4.4). [CI Windows/Mac đã qua](https://github.com/MinhOmega/sabo-lab-build/actions/runs/41828017306); file công khai đã kiểm chứng chữ ký updater và hash. Sửa giữ phiên Hoa Đăng, Dừng theo giả lập, retry sau lượt mới và log lý do đóng game. Native Windows 292/Mac 294, frontend 565, quest 67, license 11; không có compiler warning. Gameplay trọn lượt trên máy khách cần tiếp tục đối chiếu log.
+
 [Tải Sabo Lab đã phát hành](https://github.com/MinhOmega/sabo-lab-build/releases/latest) · [Hướng dẫn sử dụng có ảnh](docs/client-guide.md). Người dùng app không cần Rust, Node hoặc GitHub token.
 
 Repo public này chỉ chứa workflow và helper điều phối. Source luôn ở **private** `MinhOmega/sabo-lab-next`. Có hai luồng: Windows test build lưu installer/log private; signed desktop release chủ động phát hành **chỉ binary có chữ ký và feed cập nhật** tại [releases công khai](https://github.com/MinhOmega/sabo-lab-build/releases). Không upload source hoặc detailed build log vào Actions artifact/cache/release công khai.

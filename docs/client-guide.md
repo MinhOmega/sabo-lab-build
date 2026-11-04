@@ -1,6 +1,6 @@
 # Dùng Sabo Lab
 
-Hướng dẫn UI **0.4.3**. [Tải bản mới nhất](https://github.com/MinhOmega/sabo-lab-build/releases/latest) hoặc dùng **Cập nhật** trong app.
+Hướng dẫn UI **0.4.4**. [Tải bản mới nhất](https://github.com/MinhOmega/sabo-lab-build/releases/latest) hoặc dùng **Cập nhật** trong app.
 
 Ảnh dưới dùng tài khoản minh họa và IPC mô phỏng, không phải kết quả chạy game thật.
 
@@ -54,7 +54,7 @@ Các tài khoản trên cùng giả lập chạy lần lượt; mỗi tài kho�
 
 - **Dừng tất cả · giữ game** dừng tác vụ của tool và giữ game. Dùng khi muốn đổi nhiệm vụ rồi chạy tiếp nhanh.
 - **Dừng hẳn · đóng game** dừng và đóng game; lần Chạy tiếp theo mở và đăng nhập lại từ đầu. Giả lập Android vẫn mở.
-- **Dừng đã chọn** nhắm các tài khoản đang tích. Trong lúc hàng đợi chạy, đổi ô tích không tự đổi hàng đợi đã bật.
+- **Dừng đã chọn** dừng mọi tài khoản trên các giả lập của tài khoản đang tích; nếu chưa tích tài khoản thì áp dụng cho giả lập đang xem. Trong lúc hàng đợi chạy, đổi ô tích không tự đổi hàng đợi đã bật.
 
 ## Dọn đồ và hỗ trợ
 
