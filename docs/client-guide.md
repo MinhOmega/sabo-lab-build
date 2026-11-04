@@ -1,6 +1,6 @@
 # Dùng Sabo Lab
 
-Các tùy chọn lịch và giao diện mới áp dụng từ **0.3.30**. [Tải bản mới nhất](https://github.com/MinhOmega/sabo-lab-build/releases/latest) khi được phát hành.
+Các tùy chọn lịch và giao diện mới áp dụng từ **0.3.30**. [Tải bản mới nhất](https://github.com/MinhOmega/sabo-lab-build/releases/latest) hoặc cập nhật trong app.
 
 Ảnh dưới dùng tài khoản minh họa và IPC mô phỏng, không phải kết quả chạy game thật.
 
