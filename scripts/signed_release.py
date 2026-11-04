@@ -4,7 +4,7 @@ import argparse, base64, datetime, hashlib, json, os, pathlib, re, shutil, subpr
 import builder
 import build_runtime
 PUBLIC = 'MinhOmega/sabo-lab-build'
-STAGE_NAMES = ['assets', 'npm-install', 'frontend-build', 'frontend-tests', 'python-tests', 'core-tests', 'quest-tests', 'native-bootstrap-tests', 'desktop-tests', 'license-tests', 'release-config', 'signed-package']
+STAGE_NAMES = ['assets', 'npm-install', 'frontend-build', 'frontend-tests', 'python-tests', 'core-tests', 'quest-tests', 'routine-tests', 'native-bootstrap-tests', 'desktop-tests', 'license-tests', 'release-config', 'signed-package']
 TARGETS = {'macos':('aarch64-apple-darwin','app','darwin-aarch64','macos/*.app.tar.gz','macos-arm64.app.tar.gz'),
            'windows':('x86_64-pc-windows-msvc','nsis','windows-x86_64','nsis/*.exe','windows-x64-setup.exe')}
 
@@ -50,6 +50,7 @@ def run_build(root,platform,verification=False):
         (source,[sys.executable,'-B','-m','unittest','discover','-s','scripts/tests','-p','test_*.py']),
         (source,['cargo','test','--locked','--manifest-path','crates/sabo-core/Cargo.toml']),
         (source,['cargo','test','--locked','--manifest-path','crates/sabo-quests/Cargo.toml']),
+        (source,['cargo','test','--locked','--manifest-path','crates/sabo-routines/Cargo.toml']),
         (source,['cargo','test','--locked','--manifest-path','crates/sabo-bootstrap/Cargo.toml']),
         (source,['cargo','test','--locked','--manifest-path','apps/desktop/src-tauri/Cargo.toml','--lib']),
         (source,['cargo','test','--locked','--manifest-path','apps/desktop/src-tauri/Cargo.toml','--lib','--features','commercial-license','license::tests']),
