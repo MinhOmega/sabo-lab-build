@@ -8,14 +8,16 @@ STAGE_NAMES = ['test-contracts', 'assets', 'npm-install', 'frontend-build', 'fro
 TARGETS = {'macos':('aarch64-apple-darwin','app','darwin-aarch64','macos/*.app.tar.gz','macos-arm64.app.tar.gz'),
            'windows':('x86_64-pc-windows-msvc','nsis','windows-x86_64','nsis/*.exe','windows-x64-setup.exe')}
 
-def public_api(path,method='GET',data=None):
+def public_api(path,method='GET',data=None,allow_missing=False):
  if not path.startswith('/repos/'+PUBLIC+'/'): raise builder.SafeError('Unexpected public API destination.')
  key=os.environ.get('GH_TOKEN','')
  if not key:raise builder.SafeError('Missing release-scoped GitHub token.')
  req=urllib.request.Request(builder.API+path,data=json.dumps(data).encode() if data is not None else None,method=method,headers={'Authorization':'Bearer '+key,'User-Agent':'sabo-signed-release','Accept':'application/vnd.github+json','Content-Type':'application/json'})
  try:
   with urllib.request.urlopen(req,timeout=60) as r:return json.load(r)
- except urllib.error.HTTPError as e:raise builder.SafeError('Public release API failed (HTTP %s).'%e.code) from None
+ except urllib.error.HTTPError as e:
+  if allow_missing and method=='GET' and e.code==404:return None
+  raise builder.SafeError('Public release API failed (HTTP %s).'%e.code) from None
 
 def find_release(tag):
  for page in range(1,6):
@@ -124,12 +126,30 @@ def diagnostics(root):
   print('Private diagnostic service temporarily unavailable; retry %d/4 in %ss.'%(attempt+1,delay),flush=True)
   time.sleep(delay)
 
+EMPTY_RELEASE_TREE='4b825dc642cb6eb9a060e54bf8d69288fbee4904'
+def ensure_empty_release_tag(tag):
+ if not re.fullmatch(r'app-v\d+\.\d+\.\d+',tag):raise builder.SafeError('Invalid release tag.')
+ prefix='/repos/'+PUBLIC+'/git/'
+ root=public_api(prefix+'ref/heads/release-assets')
+ obj=root.get('object',{})
+ if obj.get('type')!='commit' or not re.fullmatch(r'[0-9a-f]{40}',obj.get('sha','')):raise builder.SafeError('Invalid release-assets root.')
+ sha=obj['sha'];commit=public_api(prefix+'commits/'+sha)
+ if commit.get('tree',{}).get('sha')!=EMPTY_RELEASE_TREE or commit.get('parents')!=[]:raise builder.SafeError('Release archive root must have no files or parent history.')
+ ref=public_api(prefix+'ref/tags/'+tag,allow_missing=True)
+ if ref is None:
+  public_api(prefix+'refs',method='POST',data={'ref':'refs/tags/'+tag,'sha':sha})
+ elif ref.get('object',{}).get('type')!='commit' or ref['object'].get('sha')!=sha:
+  raise builder.SafeError('Existing release tag is not the reviewed empty archive root.')
+ verified=public_api(prefix+'ref/tags/'+tag)
+ if verified.get('object',{}).get('type')!='commit' or verified['object'].get('sha')!=sha:raise builder.SafeError('Release archive tag verification failed.')
+ return sha
+
 def prepare(tag):
  if not re.fullmatch(r'app-v\d+\.\d+\.\d+',tag):raise builder.SafeError('Invalid release tag.')
  release=find_release(tag)
- if release:
-  if not release['draft']:raise builder.SafeError('Already published; increment version rather than overwrite.')
- else:public_api('/repos/'+PUBLIC+'/releases',method='POST',data={'tag_name':tag,'name':'Sabo Lab '+tag[5:],'draft':True,'prerelease':False,'body':'Signed macOS ARM64 and Windows x64 installers. Private source is not published. Requires a license key for automation. Windows emulator/gameplay compatibility depends on the supported game build; Authenticode/Apple notarization are separate from updater signatures.'})
+ if release and not release['draft']:raise builder.SafeError('Already published; increment version rather than overwrite.')
+ root=ensure_empty_release_tag(tag)
+ if release is None:public_api('/repos/'+PUBLIC+'/releases',method='POST',data={'tag_name':tag,'target_commitish':root,'name':'Sabo Lab '+tag[5:],'draft':True,'prerelease':False,'body':'Signed macOS ARM64 and Windows x64 installers. Private source is not published. Requires a license key for automation. Windows emulator/gameplay compatibility depends on the supported game build; Authenticode/Apple notarization are separate from updater signatures.'})
  print('Draft binary release ready.')
 
 def upload_bundle(root,tag):
@@ -181,6 +201,7 @@ def finalize(tag):
  # or runtime GitHub API quota requirement.
  rows=public_api('/repos/'+PUBLIC+'/releases?per_page=100&page=1')
  history=release_history(release,rows)
+ ensure_empty_release_tag(tag)
  history_path=pathlib.Path('history.json');builder.save_json(history_path,history);upload(release,history_path)
  path=pathlib.Path('latest.json');builder.save_json(path,manifest);upload(release,path)
  public_api('/repos/'+PUBLIC+'/releases/'+str(release['id']),method='PATCH',data={'draft':False,'prerelease':False,'make_latest':'true'})
