@@ -1,0 +1,26 @@
+name: Auto signed release from private main
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: auto-release-check
+  cancel-in-progress: false
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    environment: private-build
+    permissions:
+      contents: read
+      actions: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Dispatch signed release when main has a new stable version
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SABO_PRIVATE_REPO_TOKEN: ${{ secrets.SABO_PRIVATE_REPO_TOKEN }}
+        run: python scripts/auto_release.py
