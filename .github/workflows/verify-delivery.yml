@@ -68,6 +68,8 @@ jobs:
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ''
+          MACOS_SIGNING_P12_BASE64: ${{ matrix.platform == 'macos' && secrets.MACOS_SIGNING_P12_BASE64 || '' }}
+          MACOS_SIGNING_P12_PASSWORD: ${{ matrix.platform == 'macos' && secrets.MACOS_SIGNING_P12_PASSWORD || '' }}
         run: python scripts/signed_release.py verify --root "$PRIVATE_BUILD_ROOT" --platform "$BUILD_PLATFORM" --mode full
       - name: Validate tests and compile only without signing key
         if: inputs.mode == 'quick'
