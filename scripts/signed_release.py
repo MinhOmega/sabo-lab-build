@@ -5,6 +5,7 @@ import builder
 import build_runtime
 PUBLIC = 'MinhOmega/sabo-lab-build'
 STAGE_NAMES = ['test-contracts', 'assets', 'npm-install', 'frontend-build', 'frontend-tests', 'python-tests', 'core-tests', 'quest-tests', 'routine-tests', 'native-bootstrap-tests', 'desktop-tests', 'license-tests', 'release-config', 'signed-package']
+MODES = ('full','quick')
 TARGETS = {'macos':('aarch64-apple-darwin','app','darwin-aarch64','macos/*.app.tar.gz','macos-arm64.app.tar.gz'),
            'windows':('x86_64-pc-windows-msvc','nsis','windows-x86_64','nsis/*.exe','windows-x64-setup.exe')}
 
@@ -34,8 +35,9 @@ def upload(release,path):
   with urllib.request.urlopen(req,timeout=300) as r:return json.load(r)
  except urllib.error.HTTPError as e:raise builder.SafeError('Public asset upload failed (HTTP %s).'%e.code) from None
 
-def run_build(root,platform,verification=False):
+def run_build(root,platform,verification=False,mode='full'):
  target,bundle,_,pattern,suffix=TARGETS[platform]
+ if mode not in MODES or (mode=='quick' and not verification):raise builder.SafeError('Invalid build mode.')
  if (platform=='windows')!=(os.name=='nt'):raise builder.SafeError('Wrong build runner.')
  source=root/'source';out=root/'private-output';out.mkdir(exist_ok=True);request=json.loads((root/'request.json').read_text())
  version=json.loads((source/'apps/desktop/package.json').read_text())['version']
@@ -43,7 +45,7 @@ def run_build(root,platform,verification=False):
  status={**request,'version':version,'platform':platform,'status':'failed','tag':'signed-'+platform+'-ci-'+request['sourceCommit'][:12]}
  env=build_runtime.environment(root,platform,request['sourceCommit'])
  status.update(buildPolicy=build_runtime.policy(platform),stages=[])
- if verification:status.update(tag='verify-'+platform+'-ci-'+request['sourceCommit'][:12]+'-'+os.environ.get('GITHUB_RUN_ID','local'),verificationOnly=True)
+ if verification:status.update(tag='verify-'+('quick-' if mode=='quick' else '')+platform+'-ci-'+request['sourceCommit'][:12]+'-'+os.environ.get('GITHUB_RUN_ID','local'),verificationOnly=True,mode=mode)
  if (root/'cache-restore.json').is_file():status['cacheRestore']=json.loads((root/'cache-restore.json').read_text())
  npm='npm.cmd' if os.name=='nt' else 'npm';desktop=source/'apps/desktop';overlay=root/'updater-config.json'
  steps=[(source,[sys.executable,'scripts/check-test-contracts.py']),
@@ -59,12 +61,14 @@ def run_build(root,platform,verification=False):
         (source,['cargo','test','--locked','--manifest-path','apps/desktop/src-tauri/Cargo.toml','--lib','--features','commercial-license','license::tests']),
         (source,[sys.executable,'scripts/prepare-app-release.py','--output',str(overlay)]),
         (desktop,[npm,'run','tauri','build','--','--target',target,'--bundles',bundle,'--features','commercial-license','--config',str(overlay)])]
+ # Quick verification stops before the only stage that receives the updater key.
+ if mode=='quick':steps=steps[:STAGE_NAMES.index('signed-package')]
  failed=None
  with (out/'build-detail.txt').open('wb') as log:
   for index,(cwd,args) in enumerate(steps,1):
    print('Private signed validation/build stage %d is running.'%index,flush=True)
    child=env.copy()
-   if index==len(steps):
+   if STAGE_NAMES[index-1]=='signed-package':
     private=os.environ.get('TAURI_SIGNING_PRIVATE_KEY','')
     if not private:raise builder.SafeError('Missing updater signing key.')
     child.update(TAURI_SIGNING_PRIVATE_KEY=private,TAURI_SIGNING_PRIVATE_KEY_PASSWORD=os.environ.get('TAURI_SIGNING_PRIVATE_KEY_PASSWORD',''))
@@ -80,7 +84,8 @@ def run_build(root,platform,verification=False):
      diagnostic=build_runtime.run_stage([sys.executable,str(probe),str(root/'target')],source,env,log,45,'windows-loader-probe')
      status['loaderProbe']=diagnostic
     break
-  if failed is None:
+  if failed is None and mode=='quick':status.update(status='success',updaterSigned=False)
+  elif failed is None:
    files=list((root/'target'/target/'release/bundle').glob(pattern))
    if len(files)!=1:failed='artifact-count'
    else:
@@ -96,7 +101,7 @@ def run_build(root,platform,verification=False):
  status.update(failedStage=failed,finishedAt=datetime.datetime.now(datetime.timezone.utc).isoformat())
  builder.save_json(out/'build-info.json',status)
  if failed is not None:raise builder.SafeError('Signed build failed; see PRIVATE diagnostic release.')
- print('Signed platform bundle built; source and diagnostic log remain private.')
+ print('Quick verification passed; nothing was signed or published.' if mode=='quick' else 'Signed platform bundle built; source and diagnostic log remain private.')
 
 def _diagnostics_once(root):
  out=root/'private-output'
@@ -208,11 +213,11 @@ def finalize(tag):
  print('Published signed macOS/Windows release and anonymous updater feed.')
 
 def main():
- p=argparse.ArgumentParser();p.add_argument('action',choices=['prepare','build','verify','diagnostics','upload','finalize']);p.add_argument('--root',type=pathlib.Path);p.add_argument('--platform',choices=TARGETS);p.add_argument('--tag',default='');a=p.parse_args()
+ p=argparse.ArgumentParser();p.add_argument('action',choices=['prepare','build','verify','diagnostics','upload','finalize']);p.add_argument('--root',type=pathlib.Path);p.add_argument('--platform',choices=TARGETS);p.add_argument('--tag',default='');p.add_argument('--mode',choices=MODES,default='full');a=p.parse_args()
  try:
   if a.action=='prepare':prepare(a.tag)
   elif a.action=='build':run_build(a.root,a.platform)
-  elif a.action=='verify':run_build(a.root,a.platform,verification=True)
+  elif a.action=='verify':run_build(a.root,a.platform,verification=True,mode=a.mode)
   elif a.action=='diagnostics':diagnostics(a.root)
   elif a.action=='upload':upload_bundle(a.root,a.tag)
   else:finalize(a.tag)

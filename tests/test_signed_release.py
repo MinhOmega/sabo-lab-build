@@ -84,7 +84,45 @@ class SignedReleaseTests(unittest.TestCase):
    self.assertIn('actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1',source)
    self.assertNotIn('uses: actions/cache@',source)
    if 'actions/setup-node@' in source:self.assertIn('package-manager-cache: false',source)
-if __name__=='__main__':unittest.main()
+class QuickVerificationTests(unittest.TestCase):
+ def build(self,mode,verification=True):
+  platform='windows' if signed.os.name=='nt' else 'macos';calls=[]
+  with tempfile.TemporaryDirectory() as d:
+   root=pathlib.Path(d);desktop=root/'source/apps/desktop';desktop.mkdir(parents=True)
+   (root/'request.json').write_text(json.dumps({'sourceCommit':'a'*40,'repository':'MinhOmega/sabo-lab-next'}));(desktop/'package.json').write_text('{"version":"0.7.7"}')
+   def run(args,**kwargs):
+    calls.append(args);self.assertNotIn('TAURI_SIGNING_PRIVATE_KEY',kwargs['env']);return types.SimpleNamespace(returncode=0)
+   with mock.patch.object(signed.build_runtime,'execute',side_effect=run),mock.patch.dict(signed.os.environ,{'GITHUB_RUN_ID':'77'},clear=False):
+    signed.os.environ.pop('TAURI_SIGNING_PRIVATE_KEY',None)
+    signed.run_build(root,platform,verification=verification,mode=mode)
+   return calls,json.loads((root/'private-output/build-info.json').read_text())
+ def test_quick_runs_every_check_but_never_bundles_or_needs_signing_key(self):
+  calls,status=self.build('quick')
+  self.assertEqual(len(calls),len(signed.STAGE_NAMES)-1);self.assertFalse(any('tauri' in c for c in calls))
+  self.assertEqual(status['status'],'success');self.assertEqual(status['mode'],'quick');self.assertFalse(status['updaterSigned'])
+  self.assertTrue(status['tag'].startswith('verify-quick-'));self.assertTrue(status['verificationOnly'])
+ def test_quick_mode_cannot_produce_a_release_build(self):
+  with tempfile.TemporaryDirectory() as d:
+   with self.assertRaises(signed.builder.SafeError):signed.run_build(pathlib.Path(d),'macos',verification=False,mode='quick')
+ def test_full_verification_still_requires_signing_key_and_records_mode(self):
+  platform='windows' if signed.os.name=='nt' else 'macos'
+  with tempfile.TemporaryDirectory() as d:
+   root=pathlib.Path(d);desktop=root/'source/apps/desktop';desktop.mkdir(parents=True)
+   (root/'request.json').write_text(json.dumps({'sourceCommit':'a'*40,'repository':'MinhOmega/sabo-lab-next'}));(desktop/'package.json').write_text('{"version":"0.7.7"}')
+   with mock.patch.object(signed.build_runtime,'execute',return_value=types.SimpleNamespace(returncode=0)) as run,mock.patch.dict(signed.os.environ,{},clear=False):
+    signed.os.environ.pop('TAURI_SIGNING_PRIVATE_KEY',None)
+    with self.assertRaisesRegex(signed.builder.SafeError,'signing key'):signed.run_build(root,platform,verification=True,mode='full')
+   self.assertEqual(run.call_count,len(signed.STAGE_NAMES)-1)
+ def test_workflow_gives_signing_key_only_to_full_mode(self):
+  workflow=(ROOT/'.github/workflows/verify-delivery.yml').read_text()
+  steps=workflow.split('\n      - ')
+  quick=[s for s in steps if '--mode quick' in s];full=[s for s in steps if '--mode full' in s]
+  self.assertEqual(len(quick),1);self.assertEqual(len(full),1)
+  self.assertIn("if: inputs.mode == 'quick'",quick[0]);self.assertNotIn('TAURI_SIGNING',quick[0]);self.assertNotIn('secrets.',quick[0])
+  self.assertIn("if: inputs.mode == 'full'",full[0]);self.assertIn('TAURI_SIGNING_PRIVATE_KEY',full[0])
+  self.assertEqual(workflow.count('TAURI_SIGNING_PRIVATE_KEY:'),1)
+  self.assertIn('default: full',workflow);self.assertIn('run-name: Verify delivery (${{ inputs.mode }})',workflow)
+  save=[s for s in steps if 'private_cache.py save' in s][0];self.assertIn("inputs.mode == 'full'",save)
 
 class ReleaseHistoryTests(unittest.TestCase):
  def release(self,version,draft=False,complete=True):
@@ -99,3 +137,4 @@ class ReleaseHistoryTests(unittest.TestCase):
   current=self.release('0.4.5',draft=True);bad=self.release('0.4.4');bad['prerelease']=True
   rows=[self.release('0.4.3',draft=True),self.release('0.4.2',complete=False),{**self.release('0.4.1'),'tag_name':'app-v0.4.1-beta'},bad,self.release('0.4.0')]
   self.assertEqual([r['version'] for r in signed.release_history(current,rows)['releases']],['0.4.5','0.4.0'])
+if __name__=='__main__':unittest.main()
