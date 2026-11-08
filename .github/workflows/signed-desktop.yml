@@ -80,6 +80,8 @@ jobs:
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ''
+          MACOS_SIGNING_P12_BASE64: ${{ matrix.platform == 'macos' && secrets.MACOS_SIGNING_P12_BASE64 || '' }}
+          MACOS_SIGNING_P12_PASSWORD: ${{ matrix.platform == 'macos' && secrets.MACOS_SIGNING_P12_PASSWORD || '' }}
         run: python scripts/signed_release.py build --root "$PRIVATE_BUILD_ROOT" --platform "$BUILD_PLATFORM" --tag "$RELEASE_TAG"
       - name: Save successful third-party compiler cache privately
         if: success()

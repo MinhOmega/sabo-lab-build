@@ -19,7 +19,7 @@ PROFILE = {
 
 def environment(root, platform, revision=None):
     env = {k: v for k, v in os.environ.items()
-           if not any(s in k.upper() for s in ('TOKEN', 'SECRET', 'PASSWORD', 'SIGNING_PRIVATE'))}
+           if not any(s in k.upper() for s in ('TOKEN', 'SECRET', 'PASSWORD', 'SIGNING_PRIVATE', 'P12', 'CERTIFICATE'))}
     jobs = min(os.cpu_count() or 1, 3 if platform == 'windows' else 2)
     env.update(PROFILE, CARGO_TARGET_DIR=str(root / 'target'),
                CARGO_HOME=str(root / 'cargo-home'), CARGO_INCREMENTAL='0',

@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Signed binary releases; private source and diagnostics stay in private repo."""
-import argparse, base64, datetime, hashlib, json, os, pathlib, re, shutil, subprocess, sys, time, urllib.error, urllib.parse, urllib.request
+import argparse, base64, contextlib, datetime, hashlib, json, os, pathlib, re, shutil, subprocess, sys, time, urllib.error, urllib.parse, urllib.request
 import builder
 import build_runtime
+import macos_signing
 PUBLIC = 'MinhOmega/sabo-lab-build'
 STAGE_NAMES = ['test-contracts', 'assets', 'npm-install', 'frontend-build', 'frontend-tests', 'python-tests', 'core-tests', 'quest-tests', 'routine-tests', 'native-bootstrap-tests', 'desktop-tests', 'license-tests', 'release-config', 'signed-package']
 MODES = ('full','quick')
@@ -73,7 +74,12 @@ def run_build(root,platform,verification=False,mode='full'):
     if not private:raise builder.SafeError('Missing updater signing key.')
     child.update(TAURI_SIGNING_PRIVATE_KEY=private,TAURI_SIGNING_PRIVATE_KEY_PASSWORD=os.environ.get('TAURI_SIGNING_PRIVATE_KEY_PASSWORD',''))
    log.write(('\nSTAGE %d\n'%index).encode());log.flush()
-   stage=build_runtime.run_stage(args,cwd,child,log,5400,STAGE_NAMES[index-1])
+   with contextlib.ExitStack() as signing:
+    if platform=='macos' and STAGE_NAMES[index-1]=='signed-package':
+     # Stable certificate pin instead of ad-hoc: Keychain ACLs survive updates.
+     try:child['APPLE_SIGNING_IDENTITY']=identity=signing.enter_context(macos_signing.keychain(log))
+     except builder.SafeError:failed='macos-signing-setup';break
+    stage=build_runtime.run_stage(args,cwd,child,log,5400,STAGE_NAMES[index-1])
    status['stages'].append(stage)
    print('Private stage %d completed in %.1fs.'%(index,stage['durationSeconds']),flush=True)
    if not stage['success']:
@@ -85,7 +91,14 @@ def run_build(root,platform,verification=False,mode='full'):
      status['loaderProbe']=diagnostic
     break
   if failed is None and mode=='quick':status.update(status='success',updaterSigned=False)
-  elif failed is None:
+  elif failed is None and platform=='macos':
+   apps=list((root/'target'/target/'release/bundle/macos').glob('*.app'))
+   try:
+    if len(apps)!=1:raise builder.SafeError('macOS app bundle count mismatch.')
+    status['macosSignature']=macos_signing.verify(apps[0],identity,log)
+   except builder.SafeError:failed='macos-signature'
+   print('macOS stable signature check: '+('fail' if failed else 'pass')+'.',flush=True)
+  if failed is None and mode!='quick':
    files=list((root/'target'/target/'release/bundle').glob(pattern))
    if len(files)!=1:failed='artifact-count'
    else:
