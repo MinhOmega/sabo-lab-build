@@ -77,9 +77,10 @@ class SignatureTests(unittest.TestCase):
   calls=[]
   def run(args,log,check=True,timeout=120):
    calls.append(args);return DETAILS if '--verbose=4' in args else 'designated => '+DR if '-r-' in args else ''
-  with mock.patch.object(m,'run',side_effect=run):m.verify(pathlib.Path('/x/Sabo Lab.app'),ID,io.BytesIO())
+  app=pathlib.Path('/x/Sabo Lab.app')
+  with mock.patch.object(m,'run',side_effect=run):m.verify(app,ID,io.BytesIO())
   self.assertTrue(all(c[0]=='/usr/bin/codesign' and '--force' not in c and '-s' not in c for c in calls))
-  self.assertIn(['/usr/bin/codesign','--verify','--deep','--strict','/x/Sabo Lab.app'],calls)
+  self.assertIn(['/usr/bin/codesign','--verify','--deep','--strict',str(app)],calls)
 
 @unittest.skipIf(signed.os.name=='nt','macOS build path is exercised on POSIX runners')
 class SignedBuildTests(unittest.TestCase):
