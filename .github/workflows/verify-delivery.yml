@@ -1,4 +1,5 @@
 name: Verify signed delivery without publication
+run-name: Verify delivery (${{ inputs.mode }})
 on:
   workflow_dispatch:
     inputs:
@@ -6,10 +7,15 @@ on:
         description: Full reviewed private source SHA
         type: string
         required: true
+      mode:
+        description: full builds and signs privately (release evidence); quick runs tests only, without the signing key
+        type: choice
+        options: [full, quick]
+        default: full
 permissions:
   contents: read
 concurrency:
-  group: verify-signed-delivery
+  group: verify-signed-delivery-${{ inputs.mode }}
   cancel-in-progress: false
 jobs:
   verify:
@@ -58,12 +64,16 @@ jobs:
           SABO_PRIVATE_REPO_TOKEN: ${{ secrets.SABO_PRIVATE_REPO_TOKEN }}
         run: python scripts/private_cache.py restore --root "$PRIVATE_BUILD_ROOT" --platform "$BUILD_PLATFORM"
       - name: Validate and build signed bundle without publication
+        if: inputs.mode == 'full'
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ''
-        run: python scripts/signed_release.py verify --root "$PRIVATE_BUILD_ROOT" --platform "$BUILD_PLATFORM"
+        run: python scripts/signed_release.py verify --root "$PRIVATE_BUILD_ROOT" --platform "$BUILD_PLATFORM" --mode full
+      - name: Validate tests and compile only without signing key
+        if: inputs.mode == 'quick'
+        run: python scripts/signed_release.py verify --root "$PRIVATE_BUILD_ROOT" --platform "$BUILD_PLATFORM" --mode quick
       - name: Save successful third-party compiler cache privately
-        if: success()
+        if: success() && inputs.mode == 'full'
         env:
           SABO_PRIVATE_REPO_TOKEN: ${{ secrets.SABO_PRIVATE_REPO_TOKEN }}
         run: python scripts/private_cache.py save --root "$PRIVATE_BUILD_ROOT" --platform "$BUILD_PLATFORM"
