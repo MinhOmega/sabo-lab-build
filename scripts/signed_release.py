@@ -7,6 +7,10 @@ import macos_signing
 PUBLIC = 'MinhOmega/sabo-lab-build'
 STAGE_NAMES = ['test-contracts', 'assets', 'npm-install', 'frontend-build', 'frontend-tests', 'python-tests', 'core-tests', 'quest-tests', 'routine-tests', 'native-bootstrap-tests', 'desktop-tests', 'license-tests', 'release-config', 'signed-package']
 MODES = ('full','quick')
+# Tauri downloads bundler tools (NSIS) from GitHub releases during packaging.
+# A 5xx there is transient: rerun only the bundle stage, never earlier stages.
+BUNDLE_RETRY_DELAYS = (30, 90)
+TRANSIENT_DOWNLOAD = re.compile(rb'http status: 5\d\d')
 TARGETS = {'macos':('aarch64-apple-darwin','app','darwin-aarch64','macos/*.app.tar.gz','macos-arm64.app.tar.gz'),
            'windows':('x86_64-pc-windows-msvc','nsis','windows-x86_64','nsis/*.exe','windows-x64-setup.exe')}
 
@@ -35,6 +39,24 @@ def upload(release,path):
  try:
   with urllib.request.urlopen(req,timeout=300) as r:return json.load(r)
  except urllib.error.HTTPError as e:raise builder.SafeError('Public asset upload failed (HTTP %s).'%e.code) from None
+
+def transient_bundle_failure(stage,log_path,start):
+ if stage['success'] or stage['failure'] is not None:return False
+ with open(log_path,'rb') as detail:
+  detail.seek(max(start,detail.seek(0,2)-256*1024));return bool(TRANSIENT_DOWNLOAD.search(detail.read()))
+
+def run_bundle_stage(args,cwd,env,log,log_path,index):
+ retries=[]
+ for attempt,delay in enumerate(BUNDLE_RETRY_DELAYS+(None,),1):
+  log.flush();start=log.tell()
+  stage=build_runtime.run_stage(args,cwd,env,log,5400,'signed-package')
+  if delay is None or not transient_bundle_failure(stage,log_path,start):break
+  retries.append({'attempt':attempt,'durationSeconds':stage['durationSeconds'],'returnCode':stage['returnCode']})
+  log.write(('\nSTAGE %d RETRY %d after transient download HTTP 5xx\n'%(index,attempt)).encode());log.flush()
+  print('Private stage %d hit a transient download error; retry %d/%d in %ss.'%(index,attempt,len(BUNDLE_RETRY_DELAYS),delay),flush=True)
+  time.sleep(delay)
+ if retries:stage['transientRetries']=retries
+ return stage
 
 def run_build(root,platform,verification=False,mode='full'):
  target,bundle,_,pattern,suffix=TARGETS[platform]
@@ -79,7 +101,7 @@ def run_build(root,platform,verification=False,mode='full'):
      # Stable certificate pin instead of ad-hoc: Keychain ACLs survive updates.
      try:child['APPLE_SIGNING_IDENTITY']=identity=signing.enter_context(macos_signing.keychain(log))
      except builder.SafeError:failed='macos-signing-setup';break
-    stage=build_runtime.run_stage(args,cwd,child,log,5400,STAGE_NAMES[index-1])
+    stage=run_bundle_stage(args,cwd,child,log,out/'build-detail.txt',index) if STAGE_NAMES[index-1]=='signed-package' else build_runtime.run_stage(args,cwd,child,log,5400,STAGE_NAMES[index-1])
    status['stages'].append(stage)
    print('Private stage %d completed in %.1fs.'%(index,stage['durationSeconds']),flush=True)
    if not stage['success']:
