@@ -23,11 +23,18 @@ class AutoReleaseTests(unittest.TestCase):
  def test_active_signed_run_blocks_duplicate_dispatch(self):
   (action,_),dispatch=self.run_decide(active=True)
   self.assertEqual(action,'skip');dispatch.assert_not_called()
- def test_main_version_rejects_prerelease(self):
+ def test_main_version_is_none_for_prerelease(self):
   import base64,json
   row={'content':base64.b64encode(json.dumps({'version':'1.0.0-rc.1'}).encode()).decode()}
   with mock.patch.object(auto.builder,'select_commit',return_value=SHA),mock.patch.object(auto.builder,'api',return_value=row):
-   with self.assertRaises(auto.builder.SafeError):auto.main_version()
+   self.assertEqual(auto.main_version(),(None,'1.0.0-rc.1'))
+ def test_prerelease_main_skips_without_dispatch(self):
+  # main đang giữ bản rc (vd 0.8.0-rc.5) là trạng thái vận hành bình thường:
+  # auto-release phải skip xanh (exit 0), không phải fail đỏ mỗi 10 phút.
+  with mock.patch.object(auto,'main_version',return_value=(None,'0.8.0-rc.5')),mock.patch.object(auto,'dispatch') as dispatch,mock.patch.object(auto,'dispatch_verify') as verify:
+   action,detail=auto.decide()
+  self.assertEqual(action,'skip');dispatch.assert_not_called();verify.assert_not_called()
+  self.assertIn('0.8.0-rc.5',detail)
  def test_main_version_reads_package_at_resolved_sha(self):
   import base64,json
   row={'content':base64.b64encode(json.dumps({'version':'0.7.4'}).encode()).decode()}

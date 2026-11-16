@@ -23,7 +23,7 @@ def main_version():
  row=builder.api('/repos/'+builder.REPOSITORY+'/contents/'+PACKAGE+'?ref='+sha)
  try:version=json.loads(base64.b64decode(row.get('content',''))).get('version','')
  except (ValueError,TypeError):raise builder.SafeError('Private package version unreadable.') from None
- if not re.fullmatch(r'\d+\.\d+\.\d+',str(version)):raise builder.SafeError('Main version is not a stable release.')
+ if not re.fullmatch(r'\d+\.\d+\.\d+',str(version)):return None,str(version)
  return sha,'app-v'+version
 
 def highest_published():
@@ -112,6 +112,7 @@ def decide():
  """Return (action, detail). Never re-dispatches an existing tag (draft or
  published): a failed draft needs a human, not a retry loop."""
  sha,tag=main_version()
+ if sha is None:return 'skip','Main version %s is not stable; auto-release waits for a stable version.'%tag
  if signed.find_release(tag) is not None:return 'skip','%s already has a release or draft.'%tag
  top=highest_published()
  if top is not None and version_key(tag)<=top:return 'skip','%s is not newer than the latest published release.'%tag
